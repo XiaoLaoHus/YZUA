@@ -4,6 +4,8 @@
 
 当前版本 **v0.5**（应用版本 `0.5.0`，versionCode `5`）。应用名统一为 **YZUA**，意为 **Yangzhou University Agent**。保留 `cn.yzu.timetable` 包名及数据目录，名称变更不清理本地课表。
 
+v0.5 已发布：[GitHub Release](https://github.com/XiaoLaoHus/YZUA/releases/tag/v0.5)。前端改版请先阅读 [Opus UI 交接与项目总结](docs/OPUS-UI-HANDOFF.md) 和 [开发边界](AGENTS.md)，从包含交接文档的最新 `codex/urp-timetable` 提交开始；旧 `main` 尚不包含全部已发布功能。
+
 ## 当前功能
 
 - Android 8.0（API 26）及以上。

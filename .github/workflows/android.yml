@@ -20,6 +20,11 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Protect backend during UI redesign
+        if: startsWith(github.ref, 'refs/heads/codex/ui-') || startsWith(github.head_ref, 'codex/ui-')
+        run: node scripts/check-ui-scope.cjs origin/codex/urp-timetable
       - name: Set up JDK 17
         uses: actions/setup-java@v5
         with:
@@ -29,7 +34,7 @@ jobs:
       - name: Grant execute permission
         run: chmod +x gradlew
       - name: SSO script behavior tests
-        run: node --test scripts/test-sso-login.cjs
+        run: node --test scripts/test-*.cjs
       - name: Unit tests
         run: |
           set -euo pipefail
