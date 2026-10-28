@@ -1,6 +1,12 @@
 package cn.yzu.timetable.data.urp
 
 object SsoPolicy {
+    fun isCredentialUrl(url: String): Boolean = runCatching {
+        val uri = java.net.URI(url)
+        uri.scheme == "https" && uri.host == "sso.yzu.edu.cn" && uri.userInfo == null &&
+            uri.port in setOf(-1, 443) && uri.path == "/login"
+    }.getOrDefault(false)
+
     fun isReturnUrl(url: String): Boolean = runCatching {
         val uri = java.net.URI(url)
         uri.scheme in setOf("http", "https") && uri.host == "ydjwxs.yzu.edu.cn" &&

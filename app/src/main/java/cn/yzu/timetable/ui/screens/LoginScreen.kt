@@ -32,7 +32,15 @@ import cn.yzu.timetable.ui.AppViewModel
             Spacer(Modifier.height(16.dp)); Text("扬大课表", style = MaterialTheme.typography.headlineLarge); Text("Yangzhou University Timetable", color = MaterialTheme.colorScheme.onSurfaceVariant)
             Spacer(Modifier.height(32.dp)); OutlinedTextField(state.account, vm::setAccount, label = { Text("学号") }, leadingIcon = { Icon(Icons.Default.School, null) }, singleLine = true, modifier = Modifier.fillMaxWidth())
             Spacer(Modifier.height(14.dp)); OutlinedTextField(state.password, vm::setPassword, label = { Text("统一认证密码") }, visualTransformation = PasswordVisualTransformation(), singleLine = true, modifier = Modifier.fillMaxWidth())
-            Spacer(Modifier.height(18.dp)); Button({ launcher.launch(Intent(context, SsoLoginActivity::class.java).putExtra("account", state.account.trim()).putExtra("password", state.password)) }, enabled = !state.loading && state.account.isNotBlank() && state.password.isNotBlank(), modifier = Modifier.fillMaxWidth().height(52.dp), shape = RoundedCornerShape(16.dp)) { if (state.loading) CircularProgressIndicator(Modifier.size(20.dp), color = MaterialTheme.colorScheme.onPrimary) else Text("登录扬州大学统一认证") }
+            Spacer(Modifier.height(18.dp)); Button({
+                val login = Intent(context, SsoLoginActivity::class.java).putExtra("account", state.account.trim()).putExtra("password", state.password)
+                launcher.launch(login)
+                vm.setPassword("")
+            }, enabled = !state.loading && state.account.isNotBlank() && state.password.isNotBlank(), modifier = Modifier.fillMaxWidth().height(52.dp), shape = RoundedCornerShape(16.dp)) { if (state.loading) CircularProgressIndicator(Modifier.size(20.dp), color = MaterialTheme.colorScheme.onPrimary) else Text("登录扬州大学统一认证") }
+            TextButton({
+                vm.setPassword("")
+                launcher.launch(Intent(context, SsoLoginActivity::class.java).putExtra("account", state.account.trim()).putExtra("manual", true))
+            }, enabled = !state.loading, modifier = Modifier.fillMaxWidth()) { Text("使用学校网页登录（验证码 / 登录异常）") }
             Spacer(Modifier.height(14.dp)); Text("请先连接校园网或手机 VPN。密码只用于本次认证，不会保存到本机；遇到验证码或二次认证时会提示改用学校网页登录。", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             state.error?.let { Spacer(Modifier.height(10.dp)); Text(it, color = MaterialTheme.colorScheme.error) }
         }

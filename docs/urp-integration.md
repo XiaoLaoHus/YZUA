@@ -16,7 +16,7 @@ Base URL：`http://ydjwxs.yzu.edu.cn`。学校当前使用 HTTP 教务入口；S
 
 ## 代码结构
 
-- `SsoLoginActivity`：学校网页登录，精确匹配教务主机及 `/index`、`/mobile/index`；不注入密码、Cookie 或登录脚本，不忽略 SSL 错误。等待页面加载完成后，读取课表 API 路径对应的 Cookie，用与 WebView 一致的 User-Agent 请求受保护课表接口；响应必须包含 `xkxx` 数组才交接 Cookie（包括接口轮换的 Cookie）、清理网页登录并返回 App。认证拒绝最多重新读取 Cookie 重试两次；其他错误直接显示，失败不关闭网页。“取消登录”和系统返回键关闭网页并清理 WebView。App 内退出入口是“我的 → 退出登录”，该操作废弃本地 API 会话，不代表撤销学校全部 SSO 会话。
+- `SsoLoginActivity`：原生填表认证或用户选择的学校网页登录。仅向精确 HTTPS `sso.yzu.edu.cn/login` 注入本次凭据；先选择可见密码框所在表单内的用户名，等待 Angular 校验及按钮 title / disabled 门槛更新，再单次点击官方按钮，由学校执行验证码、密码加密和提交，禁止直接调用 `form.submit()`。保持正常视口，原生遮罩防止隐形网页误触。检测验证挑战、错误、主文档网络和证书失败，保留原会话的可见网页登录入口；不忽略 SSL 错误。精确匹配教务 `/index`、`/mobile/index` 后，读取课表 API 路径 Cookie，用一致的 User-Agent 验证受保护课表接口；响应必须含 `xkxx` 数组才交接含轮换结果的 Cookie 并返回 App。认证拒绝最多重新读取 Cookie 两次；原生认证等待上限 60 秒，API 验证上限 25 秒，超时或失败停止进度条。“取消登录”和系统返回键关闭认证，销毁时清理 WebView；手动模式不限制用户填写时间。“我的 → 退出登录”只废弃本地 API 会话。
 - `SsoCookieHandoff`：一次性进程内交接 Cookie，不经 Intent 或 Bundle。
 - `UrpHttpDataSource`：IO 线程请求；每次登录独立 CookieJar / 会话令牌，退出取消旧 Call 并废弃 CookieJar；旧响应不能清理或污染新账号会话。
 - `UrpParser`：课表、成绩和 FullCalendar 事件解析；错误响应不冒充空列表，成绩关闭会抛出明确提示。
@@ -36,6 +36,11 @@ API Cookie 只驻留内存，不写入日志或 Git。Android 系统 WebView 在
 - `SSO-HTTP-xxx`：API 返回认证拒绝或重定向；不记录跳转地址及其票据。
 - `SSO-LOGIN-PAGE` / `SSO-PROBE-LOGIN`：API 返回登录页或登录标记。
 - `SSO-PROBE-FORMAT`：响应不是已核对的课表 JSON 结构，不当作有效会话。
+- `SSO-TIMEOUT` / `SSO-PROBE-TIMEOUT`：统一认证回跳或教务会话验证超时，停止进度条，可手动重试。
+- `SSO-CHALLENGE` / `SSO-REJECTED`：学校要求验证码、二次认证或页面显示拒绝；只返回固定状态码，不导出页面里的账号、票据或错误原文。
+- `SSO-NETWORK` / `SSO-TLS` / `SSO-NAVIGATION`：主文档连接失败、证书错误或未支持的跳转。
+
+2026-10-28 无限等待回归：公开 SSO Angular bundle 中的官方 `onSubmit` 先调用校验接口，必要时展示验证码，然后生成加密密码字段并提交。旧自动化同任务填表并点击，且将点击当作提交完成，缺少之后的结果检测。现将填表和点击分为不同任务，在执行可能导致回跳的点击前记录单次提交，防止导航丢失 JavaScript 回调后重发密码。Node 测试实际执行 Kotlin 生成的 JavaScript，覆盖表单定位、框架异步校验、title 门槛、禁止原生裸提交、单次点击、可信来源和错误状态；单元测试覆盖等待期限和终态。Android 真机上的学校认证仍需复测。
 
 本轮 36 项单元测试、Debug APK、Lint（0 errors / 2 warnings）通过；新增受保护接口验证、错误诊断不泄露票据、Cookie 轮换交接与登录标记拒绝测试。
 

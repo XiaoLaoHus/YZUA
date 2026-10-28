@@ -1,3 +1,7 @@
 <resources>
     <string name="app_name">扬大课表</string>
+    <string name="sso_manual_hint">请在学校页面完成登录，完成后自动返回 App</string>
+    <string name="sso_connecting">正在连接扬州大学统一认证…</string>
+    <string name="sso_return_to_app">已登录，返回 App</string>
+    <string name="sso_native_hint">正在通过学校官方页面完成认证\n如需验证码，可点击上方切换学校网页登录</string>
 </resources>

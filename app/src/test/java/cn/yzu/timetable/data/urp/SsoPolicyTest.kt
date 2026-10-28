@@ -4,6 +4,16 @@ import org.junit.Assert.*
 import org.junit.Test
 
 class SsoPolicyTest {
+    @Test fun credentialsOnlyGoToExactHttpsSsoLogin() {
+        assertTrue(SsoPolicy.isCredentialUrl("https://sso.yzu.edu.cn/login?service=fixture"))
+        assertTrue(SsoPolicy.isCredentialUrl("https://sso.yzu.edu.cn:443/login"))
+        listOf("http://sso.yzu.edu.cn/login", "https://sso.yzu.edu.cn.evil.example/login",
+            "https://sso.yzu.edu.cn:9000/login", "https://sso.yzu.edu.cn/other",
+            "https://other@sso.yzu.edu.cn/login").forEach {
+            assertFalse(it, SsoPolicy.isCredentialUrl(it))
+        }
+    }
+
     @Test fun desktopAndMobileUrpHomesCompleteAuthentication() {
         assertTrue(SsoPolicy.isReturnUrl("http://ydjwxs.yzu.edu.cn/index"))
         assertTrue(SsoPolicy.isReturnUrl("http://ydjwxs.yzu.edu.cn/mobile/index"))
