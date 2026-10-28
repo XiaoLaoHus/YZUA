@@ -48,10 +48,7 @@ import cn.yzu.timetable.ui.theme.LocalGlass
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).imePadding().padding(horizontal = 22.dp, vertical = 12.dp),
         horizontalAlignment = Alignment.CenterHorizontally) {
         Spacer(Modifier.height(28.dp))
-        Box(Modifier.size(84.dp).clip(RoundedCornerShape(26.dp)).background(Brush.linearGradient(listOf(Color(0xFF3D7BFF), Color(0xFF7C6CFF), Color(0xFF45C6D6)))),
-            contentAlignment = Alignment.Center) {
-            Icon(Icons.Default.School, null, tint = Color.White, modifier = Modifier.size(44.dp))
-        }
+        YzuaLogo(88.dp)
         Spacer(Modifier.height(18.dp))
         Text("YZUA", style = MaterialTheme.typography.headlineLarge)
         Text("Yangzhou University Agent", style = MaterialTheme.typography.bodyMedium, color = glass.textMuted)

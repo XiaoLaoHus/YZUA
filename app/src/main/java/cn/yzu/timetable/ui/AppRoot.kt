@@ -26,7 +26,7 @@ import cn.yzu.timetable.ui.components.*
 import cn.yzu.timetable.ui.screens.*
 import cn.yzu.timetable.ui.theme.*
 
-private enum class MoreRoute { Hub, Scores, Exams, Assistant }
+private enum class MoreRoute { Hub, Scores, Exams, Assistant, About }
 
 private const val TAB_TODAY = 0
 private const val TAB_TIMETABLE = 1
@@ -112,6 +112,9 @@ private val pushSpring = spring<androidx.compose.ui.unit.IntOffset>(dampingRatio
                     }
                 }
             }
+            AnimatedVisibility(!prefs.disclaimerAccepted, enter = fadeIn(), exit = fadeOut() + scaleOut(targetScale = 1.04f)) {
+                DisclaimerScreen(onAccept = prefs::acceptDisclaimer)
+            }
         }
     }
 }
@@ -128,10 +131,11 @@ private val pushSpring = spring<androidx.compose.ui.unit.IntOffset>(dampingRatio
         holder.SaveableStateProvider("more-$current") {
             val back = { onRoute(MoreRoute.Hub) }
             when (current) {
-                MoreRoute.Hub -> MoreScreen(state, { onRoute(MoreRoute.Scores) }, { onRoute(MoreRoute.Exams) }, { onRoute(MoreRoute.Assistant) })
+                MoreRoute.Hub -> MoreScreen(state, { onRoute(MoreRoute.Scores) }, { onRoute(MoreRoute.Exams) }, { onRoute(MoreRoute.Assistant) }, { onRoute(MoreRoute.About) })
                 MoreRoute.Scores -> ScoresScreen(state, viewModel::refresh, viewModel::setAllScoreTerms, onLogin, onBack = back)
                 MoreRoute.Exams -> ExamsScreen(state, viewModel::refresh, onLogin, onBack = back)
                 MoreRoute.Assistant -> AssistantScreen(onBack = back)
+                MoreRoute.About -> AboutScreen(onBack = back)
             }
         }
     }

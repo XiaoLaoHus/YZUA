@@ -24,7 +24,7 @@ import cn.yzu.timetable.ui.theme.LocalGlass
 import cn.yzu.timetable.ui.theme.TabularNumbers
 import java.time.temporal.ChronoUnit
 
-@Composable fun MoreScreen(state: AppUiState, onScores: () -> Unit, onExams: () -> Unit, onAssistant: () -> Unit) {
+@Composable fun MoreScreen(state: AppUiState, onScores: () -> Unit, onExams: () -> Unit, onAssistant: () -> Unit, onAbout: () -> Unit = {}) {
     val glass = LocalGlass.current
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).statusBarsPadding()
         .padding(start = 18.dp, end = 18.dp, top = 16.dp, bottom = LocalBottomBarSpace.current + 20.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
@@ -49,10 +49,12 @@ import java.time.temporal.ChronoUnit
             HubTile("成绩", Icons.Default.Assessment, Color(0xFF34A853), scoreValue, scoreCaption, state.scoresUpdated, onScores, Modifier.weight(1f))
             HubTile("考试", Icons.Default.EventAvailable, Color(0xFFFF9500), examValue, examCaption, state.examsUpdated, onExams, Modifier.weight(1f))
         }
-        FeatureRow("查找空教室", "按教学楼与节次查询空闲教室 · 即将上线", Icons.Default.MeetingRoom,
+        FeatureRow("查找空教室", "按教学楼与节次查询空闲教室", Icons.Default.MeetingRoom,
             listOf(Color(0xFF34C3A0), Color(0xFF3D9BFF)), onClick = null)
         FeatureRow("智能助手", "Yangzhou University Agent · 即将上线", Icons.Default.AutoAwesome,
             listOf(Color(0xFF6E8BFF), Color(0xFFB37CFF), Color(0xFFFF8FB1)), onClick = onAssistant)
+        FeatureRow("关于 YZUA", "开发者、联系方式与开源地址", Icons.Default.Info,
+            listOf(Color(0xFF0B5E3F), Color(0xFF2A8B64)), onClick = onAbout)
         Text("成绩与考试结果保存在本机，可离线查看；需要最新信息时在“我的”中登录刷新。", style = MaterialTheme.typography.bodySmall, color = glass.textFaint,
             modifier = Modifier.padding(horizontal = 6.dp))
     }

@@ -1,7 +1,10 @@
 package cn.yzu.timetable.ui.screens
 
 import androidx.compose.animation.*
+import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.spring
+import androidx.compose.animation.core.tween
+import kotlinx.coroutines.launch
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
@@ -31,7 +34,23 @@ private val MD = DateTimeFormatter.ofPattern("M/d")
     val now by rememberNow()
     var settingsOpen by remember { mutableStateOf(false) }
     val total = state.term.totalWeeks.coerceAtLeast(1)
-    val week = state.week.coerceIn(1, total)
+    // 翻页器是显示的唯一来源：按钮与滑动都只驱动翻页器，停稳后再用 shiftWeek 同步到 ViewModel，避免双向同步互相打断。
+    val pager = rememberPagerState(initialPage = state.week.coerceIn(1, total) - 1) { total }
+    val scope = rememberCoroutineScope()
+    val week = (pager.targetPage + 1).coerceIn(1, total)
+    val pageTween = tween<Float>(320, easing = FastOutSlowInEasing)
+    fun goTo(target: Int, after: () -> Unit = {}) {
+        scope.launch { pager.animateScrollToPage((target - 1).coerceIn(0, total - 1), animationSpec = pageTween); after() }
+    }
+    LaunchedEffect(pager) {
+        snapshotFlow { pager.settledPage }.collect { page ->
+            val current = vm.state.value.week
+            if (page + 1 != current) vm.shiftWeek(page + 1 - current)
+        }
+    }
+    LaunchedEffect(state.week) {
+        if (!pager.isScrollInProgress && pager.settledPage != state.week - 1) pager.scrollToPage((state.week - 1).coerceIn(0, total - 1))
+    }
     val thisWeek = state.semester?.weekOn(state.today)
     val weekStart: (Int) -> LocalDate? = { w -> runCatching { state.semester?.start()?.plusWeeks((w - 1).toLong()) }.getOrNull() }
     val start = weekStart(week)
@@ -56,9 +75,9 @@ private val MD = DateTimeFormatter.ofPattern("M/d")
                 Text(listOfNotNull(start?.let { "${it.format(MD)} – ${it.plusDays(6).format(MD)}" }, "${season.label}作息").joinToString(" · "),
                     style = MaterialTheme.typography.bodyMedium, color = LocalGlass.current.textMuted)
             }
-            GlassIconButton(Icons.Default.ChevronLeft, "上一周", { vm.shiftWeek(-1) }, enabled = week > 1, size = 38.dp)
+            GlassIconButton(Icons.Default.ChevronLeft, "上一周", { goTo(week - 1) }, enabled = week > 1, size = 38.dp)
             Spacer(Modifier.width(6.dp))
-            GlassIconButton(Icons.Default.ChevronRight, "下一周", { vm.shiftWeek(1) }, enabled = week < total, size = 38.dp)
+            GlassIconButton(Icons.Default.ChevronRight, "下一周", { goTo(week + 1) }, enabled = week < total, size = 38.dp)
             Spacer(Modifier.width(6.dp))
             GlassIconButton(Icons.Default.Tune, "课表设置", { settingsOpen = true }, size = 38.dp)
         }
@@ -66,7 +85,7 @@ private val MD = DateTimeFormatter.ofPattern("M/d")
             Spacer(Modifier.height(2.dp))
             LoadingStrip(state.loading)
             AnimatedVisibility(thisWeek != null && week != thisWeek) {
-                GlassCapsuleButton("回到本周 · 第 $thisWeek 周", vm::resetWeek, icon = Icons.Default.Today, modifier = Modifier.height(40.dp))
+                GlassCapsuleButton("回到本周 · 第 $thisWeek 周", { thisWeek?.let { goTo(it) { vm.resetWeek() } } }, icon = Icons.Default.Today, modifier = Modifier.height(40.dp))
             }
             state.semesterReminder?.let { StatusBanner(it, Icons.Default.EventNote, BannerTone.Warning, action = "校准", onAction = onCalibrate) }
             state.error?.let { StatusBanner(it, Icons.Default.ErrorOutline, BannerTone.Error) }
@@ -80,10 +99,6 @@ private val MD = DateTimeFormatter.ofPattern("M/d")
             return@Column
         }
         Spacer(Modifier.height(8.dp))
-        val pager = rememberPagerState(initialPage = week - 1) { total }
-        val latestWeek by rememberUpdatedState(week)
-        LaunchedEffect(week) { if (pager.currentPage != week - 1) pager.animateScrollToPage(week - 1, animationSpec = spring(dampingRatio = 0.85f, stiffness = 260f)) }
-        LaunchedEffect(pager) { snapshotFlow { pager.settledPage }.collect { page -> if (page + 1 != latestWeek) vm.shiftWeek(page + 1 - latestWeek) } }
         HorizontalPager(pager, Modifier.weight(1f), beyondViewportPageCount = 1, pageSpacing = 12.dp, contentPadding = PaddingValues(horizontal = 8.dp), key = { it }) { page ->
             val w = page + 1
             val pageStart = weekStart(w)

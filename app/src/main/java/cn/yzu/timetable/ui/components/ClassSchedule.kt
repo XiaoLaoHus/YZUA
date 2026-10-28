@@ -97,10 +97,15 @@ class DisplayPreferences internal constructor(private val context: Context) {
     var seasonMode by mutableStateOf(runCatching { SeasonMode.valueOf(prefs.getString(KEY_SEASON, null) ?: "Auto") }.getOrDefault(SeasonMode.Auto))
         private set
 
+    /** 首次使用须知是否已同意；仅记录勾选状态。 */
+    var disclaimerAccepted by mutableStateOf(prefs.getBoolean(KEY_DISCLAIMER, false))
+        private set
+    fun acceptDisclaimer() { disclaimerAccepted = true; prefs.edit().putBoolean(KEY_DISCLAIMER, true).apply() }
+
     fun updateHideWeekend(value: Boolean) { hideWeekend = value; prefs.edit().putBoolean(KEY_WEEKEND, value).apply() }
     fun updateSeasonMode(value: SeasonMode) { seasonMode = value; prefs.edit().putString(KEY_SEASON, value.name).apply() }
 
-    private companion object { const val KEY_WEEKEND = "hide_weekend"; const val KEY_SEASON = "season_mode" }
+    private companion object { const val KEY_WEEKEND = "hide_weekend"; const val KEY_SEASON = "season_mode"; const val KEY_DISCLAIMER = "disclaimer_v1_accepted" }
 }
 
 val LocalDisplayPreferences = staticCompositionLocalOf<DisplayPreferences> { error("DisplayPreferences not provided") }
