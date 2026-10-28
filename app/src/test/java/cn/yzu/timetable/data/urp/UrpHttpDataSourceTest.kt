@@ -16,8 +16,60 @@ class UrpHttpDataSourceTest {
     @Before fun setUp() { server = MockWebServer(); server.start() }
     @After fun tearDown() { server.shutdown() }
 
+    @Test fun loginChecksProtectedScheduleApiWithoutDesktopLogoutMarkup() = runBlocking {
+        server.enqueue(MockResponse().setBody("{\"xkxx\":[]}"))
+        val source = UrpHttpDataSource(UrpConfig(server.url("/").toString().trimEnd('/')))
+        val session = source.loginWithSsoCookie("", "JSESSIONID=browser")
+        assertEquals("统一认证用户", session.studentId)
+        val request = server.takeRequest()
+        assertEquals("/student/courseSelect/thisSemesterCurriculum/ajaxStudentSchedule/callback", request.path)
+        assertEquals("XMLHttpRequest", request.getHeader("X-Requested-With"))
+        assertEquals("JSESSIONID=browser", request.getHeader("Cookie"))
+    }
+
+    @Test fun desktopLogoutLinkDoesNotProveApiSessionIsReady() = runBlocking {
+        server.enqueue(MockResponse().setBody("<a href='/logout'>注销</a>"))
+        val source = UrpHttpDataSource(UrpConfig(server.url("/").toString().trimEnd('/')))
+        val error = runCatching { source.loginWithSsoCookie("", "JSESSIONID=browser") }.exceptionOrNull()
+        assertTrue(error is UrpParseException)
+        assertTrue(error!!.message!!.contains("SSO-PROBE-FORMAT"))
+    }
+
+    @Test fun ssoRedirectReportsStageWithoutLeakingTicket() = runBlocking {
+        server.enqueue(MockResponse().setResponseCode(302).addHeader("Location", "https://sso.yzu.edu.cn/login?ticket=fixture-secret"))
+        val source = UrpHttpDataSource(UrpConfig(server.url("/").toString().trimEnd('/')))
+        val error = runCatching { source.loginWithSsoCookie("", "JSESSIONID=browser") }.exceptionOrNull()
+        assertTrue(error is UrpLoginException)
+        assertTrue(error!!.message!!.contains("SSO-HTTP-302"))
+        assertTrue(!error.message!!.contains("fixture-secret"))
+    }
+
+    @Test fun verifiedCookieHandoffKeepsServerRotationForNextApiSession() = runBlocking {
+        server.enqueue(MockResponse().setBody("{\"xkxx\":[]}").addHeader("Set-Cookie", "JSESSIONID=rotated; Path=/; HttpOnly"))
+        val config = UrpConfig(server.url("/").toString().trimEnd('/'))
+        val verifier = UrpHttpDataSource(config)
+        val first = verifier.loginWithSsoCookie("", "JSESSIONID=initial")
+        val header = verifier.verifiedCookieHeader(first)
+        verifier.logout()
+        server.enqueue(MockResponse().setBody("{\"xkxx\":[]}"))
+        val source = UrpHttpDataSource(config)
+        source.loginWithSsoCookie("", header)
+        server.takeRequest()
+        assertEquals("JSESSIONID=rotated", server.takeRequest().getHeader("Cookie"))
+        source.logout()
+        assertTrue(runCatching { source.verifiedCookieHeader(first) }.exceptionOrNull() is UrpLoginException)
+    }
+
+    @Test fun loginFlagCannotBeAcceptedAsAnEmptyTimetable() = runBlocking {
+        server.enqueue(MockResponse().setBody("{\"login\":true,\"xkxx\":[]}"))
+        val source = UrpHttpDataSource(UrpConfig(server.url("/").toString().trimEnd('/')))
+        val error = runCatching { source.loginWithSsoCookie("", "JSESSIONID=browser") }.exceptionOrNull()
+        assertTrue(error is UrpLoginException)
+        assertTrue(error!!.message!!.contains("SSO-PROBE-LOGIN"))
+    }
+
     @Test fun ssoCookieIsReusedForScheduleScoresAndExams() = runBlocking {
-        server.enqueue(MockResponse().setBody("<html><a href='/logout'>注销</a></html>"))
+        server.enqueue(MockResponse().setBody("""{"xkxx":[]}"""))
         server.enqueue(MockResponse().setBody("""{"xkxx":[{"a":{"courseName":"数学","timeAndPlaceList":[{"classDay":"1","classSessions":"1","continuingSession":"1","classWeek":"1"}]}}]}"""))
         server.enqueue(MockResponse().setBody("<script>var url=\"/student/integratedQuery/scoreQuery/ABC/thisTermScores/data\"</script>"))
         server.enqueue(MockResponse().setBody("[{\"state\":\"1\",\"list\":[{\"id\":{\"courseNumber\":\"M01\"},\"courseName\":\"数学\",\"courseScore\":\"90\"}]}]"))
@@ -28,7 +80,7 @@ class UrpHttpDataSourceTest {
         assertEquals(1, source.getSchedule(session, Term("2026-spring", "2026 春季")).size)
         assertEquals("90", source.getScores(session).single().score)
         assertTrue(source.getExams(session).isEmpty())
-        val expectedPaths = listOf("/index", "/schedule", "/student/integratedQuery/scoreQuery/thisTermScores/index", "/student/integratedQuery/scoreQuery/ABC/thisTermScores/data", "/student/examinationManagement/examPlan/index", "/student/examinationManagement/examPlan/detail")
+        val expectedPaths = listOf("/schedule", "/schedule", "/student/integratedQuery/scoreQuery/thisTermScores/index", "/student/integratedQuery/scoreQuery/ABC/thisTermScores/data", "/student/examinationManagement/examPlan/index", "/student/examinationManagement/examPlan/detail")
         repeat(6) { index ->
             val request = server.takeRequest()
             assertEquals("GET", request.method)
@@ -43,7 +95,7 @@ class UrpHttpDataSourceTest {
     }
 
     @Test fun examEmptyPageIsAValidEmptyResultWithoutParsingBrokenDetail() = runBlocking {
-        server.enqueue(MockResponse().setBody("<a href='/logout'>注销</a>"))
+        server.enqueue(MockResponse().setBody("""{"xkxx":[]}"""))
         server.enqueue(MockResponse().setBody("<a href='/logout'>注销</a><div>还没有和你相关的考试信息！</div>"))
         val source = UrpHttpDataSource(UrpConfig(server.url("/").toString().trimEnd('/')))
         val session = source.loginWithSsoCookie("", "JSESSIONID=first")
@@ -53,14 +105,14 @@ class UrpHttpDataSourceTest {
 
     @Test fun lateOldResponseCannotReplaceNewSessionCookie() = runBlocking {
         val source = UrpHttpDataSource(UrpConfig(server.url("/").toString().trimEnd('/')))
-        server.enqueue(MockResponse().setBody("<a href='/logout'>注销</a>"))
+        server.enqueue(MockResponse().setBody("""{"xkxx":[]}"""))
         val old = source.loginWithSsoCookie("old", "JSESSIONID=old")
         server.takeRequest()
         server.enqueue(MockResponse().setHeadersDelay(700, java.util.concurrent.TimeUnit.MILLISECONDS).addHeader("Set-Cookie", "JSESSIONID=late; Path=/").setBody("{}"))
         val pending = kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.Default).async { runCatching { source.getSchedule(old, Term("current", "当前")) } }
         assertEquals("/student/courseSelect/thisSemesterCurriculum/ajaxStudentSchedule/callback", server.takeRequest(3, java.util.concurrent.TimeUnit.SECONDS)!!.path)
         source.logout()
-        server.enqueue(MockResponse().setBody("<a href='/logout'>注销</a>"))
+        server.enqueue(MockResponse().setBody("""{"xkxx":[]}"""))
         val fresh = source.loginWithSsoCookie("fresh", "JSESSIONID=fresh")
         pending.await()
         server.enqueue(MockResponse().setBody("<script>var url='/student/integratedQuery/scoreQuery/NEW/thisTermScores/data';</script>"))
@@ -78,7 +130,7 @@ class UrpHttpDataSourceTest {
     }
 
     @Test fun missingScoreEndpointIsAnErrorInsteadOfEmptyScores() = runBlocking {
-        server.enqueue(MockResponse().setBody("<a href='/logout'>注销</a>"))
+        server.enqueue(MockResponse().setBody("""{"xkxx":[]}"""))
         server.enqueue(MockResponse().setBody("<html>系统维护</html>"))
         val source = UrpHttpDataSource(UrpConfig(server.url("/").toString().trimEnd('/')))
         val session = source.loginWithSsoCookie("", "JSESSIONID=test")
@@ -92,7 +144,7 @@ class UrpHttpDataSourceTest {
     }
 
     @Test fun allTermScoresUseDynamicPostEndpointAndFetchEveryPage() = runBlocking {
-        server.enqueue(MockResponse().setBody("<a href='/logout'>注销</a>"))
+        server.enqueue(MockResponse().setBody("""{"xkxx":[]}"""))
         server.enqueue(MockResponse().setBody("<script>var url='/student/integratedQuery/scoreQuery/ROTATING/allTermScores/data';</script><form name='queryInfo'><select name='zxjxjhh'><option value=''>全部</option></select><select name='cjlx'><option value='1'>替代前成绩</option></select><input name='kcm'><input name='kch'></form>"))
         server.enqueue(MockResponse().setBody("""{"list":{"pageContext":{"totalCount":2},"records":[{"KCH":"TEST1","KCM":"测试甲","KCCJ":80,"LRZTDM":"05"}]}}"""))
         server.enqueue(MockResponse().setBody("""{"list":{"pageContext":{"totalCount":2},"records":[{"KCH":"TEST2","KCM":"测试乙","KCCJ":90,"LRZTDM":"05"}]}}"""))

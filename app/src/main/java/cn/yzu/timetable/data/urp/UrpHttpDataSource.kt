@@ -6,6 +6,7 @@ import kotlinx.coroutines.withContext
 import okhttp3.*
 import okhttp3.HttpUrl.Companion.toHttpUrl
 import org.jsoup.Jsoup
+import com.google.gson.JsonParser
 import java.io.IOException
 import java.time.LocalDate
 import java.util.concurrent.TimeUnit
@@ -39,9 +40,13 @@ class UrpHttpDataSource(
         val current = SessionTransport(client.newBuilder().cookieJar(jar).build(), jar)
         synchronized(sessionLock) { transport?.retire(); transport = current }
         try {
-            val html = read(current, config.homePath)
-            val document = Jsoup.parse(html)
-            if (document.select("a[href='/logout']").isEmpty()) sessionExpired(current)
+            // 手机首页结构及重定向与桌面端不同，用真正受保护的接口证明会话有效。
+            val payload = read(current, config.schedulePath, xhr = true)
+            val root = runCatching { JsonParser.parseString(payload).asJsonObject }.getOrNull()
+            if (root?.get("login")?.let { it.isJsonPrimitive && it.asString == "true" } == true)
+                sessionExpired(current, "课表接口要求重新认证（SSO-PROBE-LOGIN）")
+            if (root == null || root.has("error") || root.get("xkxx")?.isJsonArray != true)
+                throw UrpParseException("登录验证未收到课表接口数据（SSO-PROBE-FORMAT），请留在学校网页重试")
             synchronized(sessionLock) {
                 if (transport !== current) throw UrpLoginException("登录已取消，请重新登录")
                 UserSession(account.trim().ifBlank { "统一认证用户" }, "扬大学生", current.token, ScheduleSource.URP)
@@ -105,16 +110,22 @@ class UrpHttpDataSource(
 
     override fun logout() { synchronized(sessionLock) { transport?.retire(); transport = null } }
 
+    /** 将验证过程中轮换后的教务 Cookie 交接给后续 API 会话，调用方不得记录或持久化。 */
+    fun verifiedCookieHeader(session: UserSession): String {
+        val current = ensureSession(session)
+        return current.jar.loadForRequest(resolve(config.schedulePath)).joinToString("; ") { "${it.name}=${it.value}" }
+    }
+
     private fun ensureSession(session: UserSession): SessionTransport {
         val current = transport
         if (current == null || current.token != session.token) throw UrpLoginException("教务会话已失效，请重新登录")
         return current
     }
 
-    private fun sessionExpired(current: SessionTransport): Nothing {
+    private fun sessionExpired(current: SessionTransport, message: String = "教务会话已失效，请重新登录"): Nothing {
         synchronized(sessionLock) { if (transport === current) transport = null }
         current.retire()
-        throw UrpLoginException("教务会话已失效，请重新登录")
+        throw UrpLoginException(message)
     }
 
     private fun resolve(path: String): HttpUrl {
@@ -139,21 +150,23 @@ class UrpHttpDataSource(
         } finally { synchronized(current.calls) { current.calls.remove(call) } }
         return response.use {
             if (transport !== current) throw UrpLoginException("教务会话已结束")
-            if (it.code == 401 || it.code == 403 || it.code in 300..399) sessionExpired(current)
+            if (it.code == 401 || it.code == 403 || it.code in 300..399)
+                sessionExpired(current, "教务接口未接受登录会话（SSO-HTTP-${it.code}），请在学校网页重新确认登录")
             if (!it.isSuccessful) throw IOException("教务查询失败（HTTP ${it.code}），请稍后重试")
             val body = it.body?.string().orEmpty()
             if (body.isBlank()) throw UrpParseException("教务系统返回空响应")
             if (body.trimStart().startsWith("<")) {
                 val document = Jsoup.parse(body)
                 if (document.select("input[type=password], form[action*=sso], form[action*=login]").isNotEmpty() ||
-                    document.title().contains("统一身份认证")) sessionExpired(current)
+                    document.title().contains("统一身份认证"))
+                    sessionExpired(current, "教务接口返回登录页面（SSO-LOGIN-PAGE），请在学校网页完成认证")
             }
             body
         }
     }
 
     companion object {
-        private const val USER_AGENT = "Mozilla/5.0 (Linux; Android 10) AppleWebKit/537.36 Chrome/120.0 Mobile Safari/537.36 YZUA/0.3"
+        const val USER_AGENT = "Mozilla/5.0 (Linux; Android 10) AppleWebKit/537.36 Chrome/120.0 Mobile Safari/537.36 YZUA/0.3"
         fun defaultClient(jar: MemoryCookieJar = MemoryCookieJar()): OkHttpClient = OkHttpClient.Builder()
             .cookieJar(jar).connectTimeout(15, TimeUnit.SECONDS).readTimeout(20, TimeUnit.SECONDS)
             .followRedirects(false).followSslRedirects(false).build()

@@ -16,7 +16,7 @@ Base URL：`http://ydjwxs.yzu.edu.cn`。学校当前使用 HTTP 教务入口；S
 
 ## 代码结构
 
-- `SsoLoginActivity`：学校网页登录，精确匹配教务主机及 `/index`、`/mobile/index`；不注入密码、Cookie 或登录脚本，不忽略 SSL 错误。登录后自动返回 App；若学校跳到课表子页，可点击顶部“返回 App”导航至同源首页，随后由 API 验证会话。“取消登录”和系统返回键关闭网页并清理 WebView。App 内退出入口是“我的 → 退出登录”，该操作废弃本地 API 会话，不代表撤销学校全部 SSO 会话。
+- `SsoLoginActivity`：学校网页登录，精确匹配教务主机及 `/index`、`/mobile/index`；不注入密码、Cookie 或登录脚本，不忽略 SSL 错误。等待页面加载完成后，读取课表 API 路径对应的 Cookie，用与 WebView 一致的 User-Agent 请求受保护课表接口；响应必须包含 `xkxx` 数组才交接 Cookie（包括接口轮换的 Cookie）、清理网页登录并返回 App。认证拒绝最多重新读取 Cookie 重试两次；其他错误直接显示，失败不关闭网页。“取消登录”和系统返回键关闭网页并清理 WebView。App 内退出入口是“我的 → 退出登录”，该操作废弃本地 API 会话，不代表撤销学校全部 SSO 会话。
 - `SsoCookieHandoff`：一次性进程内交接 Cookie，不经 Intent 或 Bundle。
 - `UrpHttpDataSource`：IO 线程请求；每次登录独立 CookieJar / 会话令牌，退出取消旧 Call 并废弃 CookieJar；旧响应不能清理或污染新账号会话。
 - `UrpParser`：课表、成绩和 FullCalendar 事件解析；错误响应不冒充空列表，成绩关闭会抛出明确提示。
@@ -27,6 +27,17 @@ Base URL：`http://ydjwxs.yzu.edu.cn`。学校当前使用 HTTP 教务入口；S
 API Cookie 只驻留内存，不写入日志或 Git。Android 系统 WebView 在认证期间可能使用磁盘 Cookie 存储；App 在登录开始、完成、销毁时清理 Cookie 和网页缓存。进程被强制终止时销毁回调不保证执行，因此不能声称 WebView 全过程绝不落盘。App 不调用 CookieManager.flush 保存登录态，仅在删除 Cookie 后刷新删除状态。
 
 测试中的身份、课程、成绩与 Cookie 均为合成数据。浏览器观察到的真实个人信息未写入本仓库。
+
+## 登录失败诊断（2026-10-28）
+
+旧实现仅凭首页 URL 和非空 Cookie 结束 WebView，再要求 API 首页存在桌面注销链接；这些条件不能证明移动端 API 会话已经建立。当前用受保护课表响应验证；已在浏览器有效会话中只读确认响应为 JSON 且 `xkxx` 为数组。未连接 Android 设备，不能据此断言手机上的失效根因或端到端已修复。
+
+- `SSO-COOKIE-EMPTY`：没有读到课表 API 路径对应的 Cookie。
+- `SSO-HTTP-xxx`：API 返回认证拒绝或重定向；不记录跳转地址及其票据。
+- `SSO-LOGIN-PAGE` / `SSO-PROBE-LOGIN`：API 返回登录页或登录标记。
+- `SSO-PROBE-FORMAT`：响应不是已核对的课表 JSON 结构，不当作有效会话。
+
+本轮 36 项单元测试、Debug APK、Lint（0 errors / 2 warnings）通过；新增受保护接口验证、错误诊断不泄露票据、Cookie 轮换交接与登录标记拒绝测试。
 
 ## 考试实测限制
 
