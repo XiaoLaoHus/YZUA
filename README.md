@@ -2,9 +2,9 @@
 
 面向扬州大学学生的 Android 课表、成绩和考试查询工具。沿用 HITA 风格的 Kotlin + Jetpack Compose / Material 3 界面，AI 助手保留空白页。
 
-当前版本 **v0.5**（应用版本 `0.5.0`，versionCode `5`）。应用名统一为 **YZUA**，意为 **Yangzhou University Agent**。保留 `cn.yzu.timetable` 包名及数据目录，名称变更不清理本地课表。
+当前版本 **v1.0.0** 正式版（versionCode `100`，正式签名）。版本说明见 [docs/releases/v1.0.0.md](docs/releases/v1.0.0.md)。应用名统一为 **YZUA**，意为 **Yangzhou University Agent**。保留 `cn.yzu.timetable` 包名及数据目录，名称变更不清理本地课表。
 
-v0.5 已发布：[GitHub Release](https://github.com/XiaoLaoHus/YZUA/releases/tag/v0.5)。前端改版请先阅读 [Opus UI 交接与项目总结](docs/OPUS-UI-HANDOFF.md) 和 [开发边界](AGENTS.md)，从包含交接文档的最新 `codex/urp-timetable` 提交开始；旧 `main` 尚不包含全部已发布功能。
+v1.0.0 已发布：[GitHub Release](https://github.com/XiaoLaoHus/YZUA/releases/tag/v1.0.0)。前端改版请先阅读 [Opus UI 交接与项目总结](docs/OPUS-UI-HANDOFF.md) 和 [开发边界](AGENTS.md)，从包含交接文档的最新 `codex/urp-timetable` 提交开始；旧 `main` 尚不包含全部已发布功能。
 
 ## 当前功能
 

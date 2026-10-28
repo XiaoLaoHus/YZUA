@@ -1,3 +1,5 @@
+import java.util.Properties
+
 plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
@@ -9,7 +11,27 @@ android { namespace = "cn.yzu.timetable"; compileSdk = 35
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
     }
-    defaultConfig { applicationId = "cn.yzu.timetable"; minSdk = 26; targetSdk = 35; versionCode = 5; versionName = "0.5.0"; testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner" }
+    defaultConfig { applicationId = "cn.yzu.timetable"; minSdk = 26; targetSdk = 35; versionCode = 100; versionName = "1.0.0"; testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner" }
+    // 正式签名：从环境变量（CI）或未纳入版本控制的 local.properties 读取，仓库中不保存任何密钥。
+    val localProps = Properties().apply { rootProject.file("local.properties").takeIf { it.exists() }?.inputStream()?.use(::load) }
+    fun secret(name: String): String? = System.getenv(name)?.takeIf { it.isNotBlank() } ?: localProps.getProperty(name)?.takeIf { it.isNotBlank() }
+    val releaseStore = secret("YZUA_KEYSTORE_FILE")
+    signingConfigs {
+        if (releaseStore != null) create("release") {
+            storeFile = file(releaseStore)
+            storePassword = secret("YZUA_KEYSTORE_PASSWORD")
+            keyAlias = secret("YZUA_KEY_ALIAS")
+            keyPassword = secret("YZUA_KEY_PASSWORD")
+        }
+    }
+    buildTypes {
+        release {
+            // 不启用 R8 混淆/裁剪：缓存与 URP 解析依赖 Gson 反射，保持与已验证的调试版完全相同的代码行为。
+            isMinifyEnabled = false
+            isShrinkResources = false
+            signingConfig = signingConfigs.findByName("release")
+        }
+    }
     buildFeatures { compose = true; buildConfig = true }
     packaging { resources.excludes += "/META-INF/{AL2.0,LGPL2.1}" }
 }
