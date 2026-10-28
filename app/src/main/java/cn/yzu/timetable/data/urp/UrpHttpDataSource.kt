@@ -10,6 +10,7 @@ import okhttp3.FormBody
 import okhttp3.HttpUrl
 import okhttp3.OkHttpClient
 import okhttp3.Request
+import org.jsoup.Jsoup
 import java.io.IOException
 import java.util.concurrent.TimeUnit
 
@@ -24,8 +25,16 @@ class UrpHttpDataSource(
     override suspend fun login(account: String, password: String): UserSession {
         require(account.isNotBlank()) { "请输入学号" }
         require(password.isNotBlank()) { "请输入密码" }
-        val form = FormBody.Builder().add(config.accountField, account.trim()).add(config.passwordField, password).build()
-        val request = Request.Builder().url(baseUrl + config.loginPath).post(form).header("User-Agent", USER_AGENT).build()
+        val landing = execute(Request.Builder().url(baseUrl + config.loginPath).get().header("User-Agent", USER_AGENT).build())
+        val landingBody = landing.body?.string().orEmpty()
+        val loginDocument = Jsoup.parse(landingBody, baseUrl + config.loginPath)
+        val form = loginDocument.select("form").firstOrNull() ?: throw UrpLoginException("未找到扬大教务登录表单")
+        val action = form.absUrl("action").ifBlank { baseUrl + config.loginPath }
+        val builder = FormBody.Builder()
+        form.select("input[type=hidden][name]").forEach { builder.add(it.attr("name"), it.attr("value")) }
+        val accountField = form.select("input[type=text][name], input[name*=user i], input[name*=account i]").firstOrNull()?.attr("name") ?: config.accountField
+        val passwordField = form.select("input[type=password][name]").firstOrNull()?.attr("name") ?: config.passwordField
+        val request = Request.Builder().url(action).post(builder.add(accountField, account.trim()).add(passwordField, password).build()).header("User-Agent", USER_AGENT).build()
         val response = execute(request)
         val body = response.body?.string().orEmpty()
         if (response.code in 300..399 || body.contains("验证码") || body.contains("captcha", ignoreCase = true)) throw UrpLoginException("教务系统需要验证码，请先在校园网页完成登录")
@@ -48,7 +57,7 @@ class UrpHttpDataSource(
 
     companion object {
         private const val USER_AGENT = "YZUA/0.2 (Android; Yangzhou University timetable)"
-        fun defaultClient(): OkHttpClient = OkHttpClient.Builder().cookieJar(MemoryCookieJar()).connectTimeout(15, TimeUnit.SECONDS).readTimeout(20, TimeUnit.SECONDS).followRedirects(false).build()
+        fun defaultClient(): OkHttpClient = OkHttpClient.Builder().cookieJar(MemoryCookieJar()).connectTimeout(15, TimeUnit.SECONDS).readTimeout(20, TimeUnit.SECONDS).followRedirects(true).build()
     }
 }
 
