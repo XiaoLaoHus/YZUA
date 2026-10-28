@@ -16,6 +16,7 @@ data class AppUiState(
     val screen: AppScreen = AppScreen.Home, val account: String = "", val password: String = "",
     val session: UserSession? = null, val term: Term = Term("current", "本地课表"), val week: Int = 1,
     val today: LocalDate = LocalDate.now(), val semester: SemesterDates? = null,
+    val periods: List<PeriodTime> = emptyList(), val academicYear: String? = null, val currentWeek: Int? = null,
     val lessons: List<ScheduleLesson> = emptyList(), val scores: List<ScoreRecord> = emptyList(),
     val exams: List<ExamSchedule> = emptyList(), val scoreError: String? = null, val examError: String? = null,
     val scoresLoaded: Boolean = false, val examsLoaded: Boolean = false, val allScoreTerms: Boolean = false,
@@ -43,9 +44,10 @@ class AppViewModel(
 
     private fun restore(s: AcademicSnapshot): AppUiState {
         val today = dateProvider()
-        return AppUiState(today = today, account = s.owner, cachedOwner = s.owner, semester = s.semester,
+        return AppUiState(today = today, account = s.owner, cachedOwner = s.owner, semester = s.semester, periods = s.periods,
+            academicYear = s.academicYear, currentWeek = s.currentWeek,
             term = Term("cached", s.semester?.label ?: "本地课表 · 请校准学期日期", s.semester?.totalWeeks() ?: 20),
-            week = s.semester?.weekOn(today) ?: 1, lessons = s.lessons, scores = s.termScores, exams = s.exams,
+            week = s.currentWeek ?: s.semester?.weekOn(today) ?: 1, lessons = s.lessons, scores = s.termScores, exams = s.exams,
             scoresLoaded = s.termScoresUpdated != null, examsLoaded = s.examsUpdated != null, onboarded = s.onboarded,
             scheduleUpdated = s.scheduleUpdated, scoresUpdated = s.termScoresUpdated, examsUpdated = s.examsUpdated)
     }
@@ -105,7 +107,7 @@ class AppViewModel(
     }
     private suspend fun loadData(session: UserSession, version: Int) = coroutineScope {
         val term = mutable.value.term; val allTerms = mutable.value.allScoreTerms
-        val schedule = async { query { source.getSchedule(session, term) } }
+        val schedule = async { query { (source as? UrpScheduleResultSource)?.getScheduleResult(session, term) ?: UrpScheduleResult(source.getSchedule(session, term)) } }
         val scores = async { query { if (allTerms) source.getAllScores(session) else source.getScores(session) } }
         val exams = async { query { source.getExams(session) } }
         val dates = async { query { source.getSemesterDates(session, dateProvider()) } }
@@ -124,15 +126,19 @@ class AppViewModel(
             return@coroutineScope
         }
         snapshot = snapshot.copy(semester = semester,
-            lessons = a.getOrDefault(snapshot.lessons), scheduleUpdated = if (a.isSuccess) today.toString() else snapshot.scheduleUpdated,
+            periods = a.getOrNull()?.periods?.takeIf { it.isNotEmpty() } ?: if (a.isSuccess) emptyList() else snapshot.periods,
+            academicYear = a.getOrNull()?.academicYear ?: if (a.isSuccess) null else snapshot.academicYear,
+            currentWeek = a.getOrNull()?.currentWeek ?: if (a.isSuccess) null else snapshot.currentWeek,
+            lessons = a.getOrNull()?.lessons ?: snapshot.lessons, scheduleUpdated = if (a.isSuccess) today.toString() else snapshot.scheduleUpdated,
             termScores = if (!allTerms) b.getOrDefault(snapshot.termScores) else snapshot.termScores,
             termScoresUpdated = if (!allTerms && b.isSuccess) today.toString() else snapshot.termScoresUpdated,
             allScores = if (allTerms) b.getOrDefault(snapshot.allScores) else snapshot.allScores,
             allScoresUpdated = if (allTerms && b.isSuccess) today.toString() else snapshot.allScoresUpdated,
             exams = c.getOrDefault(snapshot.exams), examsUpdated = if (c.isSuccess) today.toString() else snapshot.examsUpdated)
-        mutable.value = previous.copy(today = today, semester = semester,
+        mutable.value = previous.copy(today = today, semester = semester, periods = snapshot.periods,
+            academicYear = snapshot.academicYear, currentWeek = snapshot.currentWeek,
             term = Term("cached", semester?.label ?: previous.term.label, semester?.totalWeeks() ?: 20),
-            week = semester?.weekOn(today) ?: previous.week, lessons = snapshot.lessons,
+            week = snapshot.currentWeek ?: semester?.weekOn(today) ?: previous.week, lessons = snapshot.lessons,
             scores = if (allTerms) snapshot.allScores else snapshot.termScores, exams = snapshot.exams,
             scheduleUpdated = snapshot.scheduleUpdated, scoresUpdated = if (allTerms) snapshot.allScoresUpdated else snapshot.termScoresUpdated,
             examsUpdated = snapshot.examsUpdated, scoresLoaded = (if (allTerms) snapshot.allScoresUpdated else snapshot.termScoresUpdated) != null,

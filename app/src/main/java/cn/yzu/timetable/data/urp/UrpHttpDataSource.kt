@@ -15,7 +15,7 @@ import java.util.concurrent.TimeUnit
 class UrpHttpDataSource(
     private val config: UrpConfig = UrpConfig(),
     private val client: OkHttpClient = defaultClient(),
-) : UrpScheduleDataSource {
+) : UrpScheduleDataSource, UrpScheduleResultSource {
     private val baseUrl = config.baseUrl.trimEnd('/').toHttpUrl()
     private val sessionLock = Any()
     @Volatile private var transport: SessionTransport? = null
@@ -58,9 +58,12 @@ class UrpHttpDataSource(
         }
     }
 
-    override suspend fun getSchedule(session: UserSession, term: Term): List<ScheduleLesson> = withContext(Dispatchers.IO) {
+    override suspend fun getSchedule(session: UserSession, term: Term): List<ScheduleLesson> = getScheduleResult(session, term).lessons
+
+    override suspend fun getScheduleResult(session: UserSession, term: Term): UrpScheduleResult = withContext(Dispatchers.IO) {
         val current = ensureSession(session)
-        UrpParser.parse(read(current, config.schedulePath, xhr = true)).lessons
+        val parsed = UrpParser.parse(read(current, config.schedulePath, xhr = true))
+        UrpScheduleResult(parsed.lessons, parsed.periods.map(UrpPeriod::toModel), parsed.academicYear, parsed.termName, parsed.currentWeek)
     }
 
     override suspend fun getScores(session: UserSession): List<ScoreRecord> = withContext(Dispatchers.IO) {

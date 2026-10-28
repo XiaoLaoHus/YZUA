@@ -10,4 +10,7 @@ data class UrpConfig(
     val allScorePagePath: String = "/student/integratedQuery/scoreQuery/allTermScores/index",
     val examPagePath: String = "/student/examinationManagement/examPlan/index",
     val examPath: String = "/student/examinationManagement/examPlan/detail",
-)
+) {
+    fun ssoLoginUrl(): String = "https://sso.yzu.edu.cn/login?service=" +
+        java.net.URLEncoder.encode(baseUrl.trimEnd('/') + loginPath, Charsets.UTF_8.name())
+}

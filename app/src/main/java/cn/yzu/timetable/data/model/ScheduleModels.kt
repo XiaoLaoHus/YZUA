@@ -6,6 +6,10 @@ data class Term(val id: String, val label: String, val totalWeeks: Int = 20)
 
 data class UserSession(val studentId: String, val displayName: String, val token: String, val source: ScheduleSource)
 
+data class PeriodTime(val number: Int, val startTime: String, val endTime: String) {
+    val label: String get() = "$startTime-$endTime"
+}
+
 data class ScheduleLesson(
     val id: String,
     val courseCode: String,

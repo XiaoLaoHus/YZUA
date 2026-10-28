@@ -1,6 +1,7 @@
 package cn.yzu.timetable.data.urp
 
 import cn.yzu.timetable.data.model.ExamSchedule
+import cn.yzu.timetable.data.model.PeriodTime
 import cn.yzu.timetable.data.model.ScheduleLesson
 import cn.yzu.timetable.data.model.ScoreRecord
 import com.google.gson.JsonElement
@@ -10,8 +11,16 @@ import org.jsoup.Jsoup
 import java.util.Locale
 
 class UrpParseException(message: String) : IllegalArgumentException(message)
-data class UrpPeriod(val number: Int, val startTime: String, val endTime: String)
-data class ParsedSchedule(val lessons: List<ScheduleLesson>, val periods: List<UrpPeriod> = emptyList())
+data class UrpPeriod(val number: Int, val startTime: String, val endTime: String) {
+    fun toModel() = PeriodTime(number, startTime, endTime)
+}
+data class ParsedSchedule(
+    val lessons: List<ScheduleLesson>,
+    val periods: List<UrpPeriod> = emptyList(),
+    val academicYear: String? = null,
+    val termName: String? = null,
+    val currentWeek: Int? = null,
+)
 data class ScorePage(val records: List<ScoreRecord>, val totalCount: Int)
 
 object WeekPattern {
@@ -136,8 +145,10 @@ object UrpParser {
             }
         } }
         if (lessons.isEmpty()) throw UrpParseException("没有解析到有效课程")
-        val periods = root.getAsJsonArray("jcsjbs")?.mapNotNull { item -> val o = item.asJsonObject; val n = text(o, "jc")?.toIntOrNull() ?: return@mapNotNull null; val st = clock(text(o, "kssj")) ?: return@mapNotNull null; val et = clock(text(o, "jssj")) ?: return@mapNotNull null; UrpPeriod(n, st, et) }.orEmpty()
-        return ParsedSchedule(lessons, periods.sortedBy(UrpPeriod::number).ifEmpty { fallbackPeriods })
+        val periods = root.getAsJsonArray("jcsjbs")?.mapNotNull { item -> val o = item.asJsonObject; val n = text(o, "jc", "section", "number")?.toIntOrNull() ?: return@mapNotNull null; val st = clock(text(o, "kssj", "startTime", "start")) ?: return@mapNotNull null; val et = clock(text(o, "jssj", "endTime", "end")) ?: return@mapNotNull null; UrpPeriod(n, st, et) }.orEmpty()
+        val orderedPeriods = periods.sortedBy(UrpPeriod::number).ifEmpty { fallbackPeriods }
+        val term = text(root, "xnxq", "xnxqmc", "term", "termName", "semester")
+        return ParsedSchedule(lessons, orderedPeriods, academicYear(term), termName(term), currentWeek(root))
     }
     private fun parseHtml(payload: String): ParsedSchedule {
         val rows = Jsoup.parse(payload).select("table tr"); if (rows.size < 2) throw UrpParseException("课表页面缺少课程表格")
@@ -152,6 +163,20 @@ object UrpParser {
     }
     private fun parseDay(value: String): Int = when (value.trim().lowercase(Locale.ROOT)) { "一", "周一", "星期一", "1" -> 1; "二", "周二", "星期二", "2" -> 2; "三", "周三", "星期三", "3" -> 3; "四", "周四", "星期四", "4" -> 4; "五", "周五", "星期五", "5" -> 5; "六", "周六", "星期六", "6" -> 6; "日", "周日", "星期日", "7" -> 7; else -> 0 }
     private fun clock(value: String?): String? = value?.takeIf { it.matches(Regex("\\d{4}")) }?.let { "${it.substring(0, 2)}:${it.substring(2)}" }
+    private fun academicYear(value: String?): String? = value?.let { Regex("(\\d{4})\\s*[-~至]\\s*(\\d{4})").find(it)?.let { match -> "${match.groupValues[1]}-${match.groupValues[2]}" } }
+    private fun termName(value: String?): String? = value?.let {
+        when {
+            it.contains("秋") || it.contains("秋季") -> "秋"
+            it.contains("春") || it.contains("春季") -> "春"
+            it.contains("夏") || it.contains("夏季") -> "夏"
+            it.contains("冬") || it.contains("冬季") -> "冬"
+            else -> null
+        }
+    }
+    private fun currentWeek(root: JsonObject): Int? = listOf("currentWeek", "week", "jxz", "教学周", "当前周次")
+        .asSequence().mapNotNull { key -> root.get(key)?.takeIf(JsonElement::isJsonPrimitive)?.asString }
+        .mapNotNull { Regex("第?\\s*(\\d{1,2})\\s*(?:教学)?周?").find(it)?.groupValues?.getOrNull(1)?.toIntOrNull() ?: it.toIntOrNull() }
+        .firstOrNull { it in 1..30 }
     private fun text(obj: JsonObject?, vararg names: String): String? = obj?.let { names.firstNotNullOfOrNull { name -> it.get(name)?.takeIf(JsonElement::isJsonPrimitive)?.asString?.takeIf(String::isNotBlank) } }
     private fun JsonElement.asJsonArrayOrNull() = if (isJsonArray) asJsonArray else null
 }

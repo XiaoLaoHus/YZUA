@@ -1,10 +1,14 @@
 package cn.yzu.timetable.data.urp
 
-import cn.yzu.timetable.data.model.ScheduleLesson
-import cn.yzu.timetable.data.model.ExamSchedule
-import cn.yzu.timetable.data.model.ScoreRecord
-import cn.yzu.timetable.data.model.Term
-import cn.yzu.timetable.data.model.UserSession
+import cn.yzu.timetable.data.model.*
+
+data class UrpScheduleResult(
+    val lessons: List<ScheduleLesson>,
+    val periods: List<PeriodTime> = emptyList(),
+    val academicYear: String? = null,
+    val termName: String? = null,
+    val currentWeek: Int? = null,
+)
 
 interface UrpScheduleDataSource {
     suspend fun login(account: String, password: String): UserSession
@@ -15,4 +19,9 @@ interface UrpScheduleDataSource {
     suspend fun getExams(session: UserSession): List<ExamSchedule>
     suspend fun getSemesterDates(session: UserSession, date: java.time.LocalDate): cn.yzu.timetable.data.SemesterDates? = null
     fun logout() {}
+}
+
+/** Optional richer contract used by URP implementations that expose period and term metadata. */
+interface UrpScheduleResultSource {
+    suspend fun getScheduleResult(session: UserSession, term: Term): UrpScheduleResult
 }

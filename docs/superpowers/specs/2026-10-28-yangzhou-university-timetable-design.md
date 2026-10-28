@@ -10,13 +10,13 @@
 - 使用 Kotlin + Jetpack Compose + Material 3，保持 HITA 的视觉方向：浅色卡片、蓝紫渐变强调色、圆角、底部导航和周视图网格。
 - 提供登录页、课表主页、课程详情页、AI 空白页、设置页。
 - 支持学期切换、上一周/下一周、回到本周、课程卡片点击查看详情。
-- 登录和课表查询使用 `UrpScheduleDataSource` 抽象；默认实现提供演示数据，真实 URP 实现预留 Base URL、JWT 和学期参数。
+- 登录和课表查询使用 `UrpScheduleDataSource` 抽象；默认实现提供演示数据，真实 URP 实现通过隐藏 WebView 触发扬大 SSO 官方表单，再用内存 CookieJar 查询 URP。
 - 用本地 `DataStore` 保存登录状态与最近一次课表，断网时仍能查看缓存。
 
 ## 非目标
 
 - 首版不实现 AI 问答、成绩、考试、选课、空教室和消息推送。
-- 不把扬大 URP 的账号密码发送到第三方服务。
+- 不把扬大 URP 的账号密码发送到第三方服务；密码只从原生登录表单交给扬大 SSO，并在认证结束后清空。
 - 不声称已经接通扬州大学真实 URP；真实接口需要部署地址、登录字段和课表响应样例后再落地。
 
 ## 反目标
@@ -37,7 +37,7 @@
 
 领域模型统一为：`Term`、`ScheduleCourse`、`ScheduleLesson`、`UserSession`。
 
-`UrpScheduleDataSource` 提供两个操作：`login(account, password)` 和 `getSchedule(session, term)`。HTTP 实现使用 Retrofit/OkHttp：登录得到 JWT，后续请求通过 `Authorization: Bearer <token>`，课程响应映射为统一的 `ScheduleLesson`。接口路径和字段通过 `UrpConfig` 集中配置，不散落在 UI 或 ViewModel 中。
+`UrpScheduleDataSource` 提供登录、课表、成绩和考试查询操作。HTTP 实现使用 OkHttp：隐藏 WebView 完成 SSO 官方表单后交接 Cookie，后续请求通过内存 CookieJar；课程响应映射为统一的 `ScheduleLesson`，并解析 `jcsjbs` 节次时间及可用的学年、学期和教学周元数据。接口路径和字段通过 `UrpConfig` 集中配置，不散落在 UI 或 ViewModel 中。
 
 在没有真实扬大接口契约的情况下，`DemoUrpDataSource` 生成一组扬大示例课程，保证 UI 和交互可验收；真实接入只需替换数据源与字段映射，不改页面。
 

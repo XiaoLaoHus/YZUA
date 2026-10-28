@@ -2,7 +2,7 @@ package cn.yzu.timetable.data.urp
 
 import cn.yzu.timetable.data.model.*
 
-class DemoUrpDataSource : UrpScheduleDataSource {
+class DemoUrpDataSource : UrpScheduleDataSource, UrpScheduleResultSource {
     override suspend fun login(account: String, password: String): UserSession {
         require(account.isNotBlank()) { "请输入学号" }
         require(password.isNotBlank()) { "请输入密码" }
@@ -22,6 +22,19 @@ class DemoUrpDataSource : UrpScheduleDataSource {
         ScheduleLesson("marx", "MARX001", "思想道德与法治", "周老师", "荷花池校区 2-101", 5, 9, 10, 1..16, 4),
         ScheduleLesson("lab", "PHY108", "大学物理实验", "孙老师", "扬子津校区 实验楼", 6, 3, 4, 4..12, 5),
         ScheduleLesson("design", "ART220", "设计思维", "顾老师", "瘦西湖校区 创意工坊", 3, 9, 10, 8..16, 6),
+    )
+
+    override suspend fun getScheduleResult(session: UserSession, term: Term): UrpScheduleResult = UrpScheduleResult(
+        lessons = getSchedule(session, term),
+        periods = listOf(
+            PeriodTime(1, "08:00", "08:45"), PeriodTime(2, "08:55", "09:40"),
+            PeriodTime(3, "09:55", "10:40"), PeriodTime(4, "10:50", "11:35"),
+            PeriodTime(5, "11:45", "12:30"), PeriodTime(6, "14:30", "15:15"),
+            PeriodTime(7, "15:25", "16:10"), PeriodTime(8, "16:20", "17:05"),
+            PeriodTime(9, "17:15", "18:00"), PeriodTime(10, "18:10", "18:55"),
+            PeriodTime(11, "19:30", "20:15"), PeriodTime(12, "20:25", "21:10"),
+        ),
+        academicYear = "2026-2027", termName = "秋", currentWeek = 9,
     )
 
     override suspend fun getScores(session: UserSession): List<ScoreRecord> = listOf(

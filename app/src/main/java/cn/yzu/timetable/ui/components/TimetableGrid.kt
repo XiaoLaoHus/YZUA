@@ -13,14 +13,15 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import cn.yzu.timetable.data.model.ScheduleLesson
+import cn.yzu.timetable.data.model.PeriodTime
 
 private val palette = listOf(Color(0xFFE0F2FE), Color(0xFFEDE9FE), Color(0xFFDCFCE7), Color(0xFFFFEDD5), Color(0xFFFCE7F3), Color(0xFFE0E7FF), Color(0xFFFEF3C7))
 private val accents = listOf(Color(0xFF0284C7), Color(0xFF7C3AED), Color(0xFF16A34A), Color(0xFFEA580C), Color(0xFFDB2777), Color(0xFF4F46E5), Color(0xFFD97706))
 
-@Composable fun TimetableGrid(week: Int, lessons: List<ScheduleLesson>, onLessonClick: (ScheduleLesson) -> Unit) {
+@Composable fun TimetableGrid(week: Int, lessons: List<ScheduleLesson>, periods: List<PeriodTime> = emptyList(), onLessonClick: (ScheduleLesson) -> Unit) {
     val days = listOf("一", "二", "三", "四", "五", "六", "日")
     Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState())) {
-        Column(Modifier.width(38.dp)) { Spacer(Modifier.height(42.dp)); for (period in 1..12) { Box(Modifier.height(56.dp).fillMaxWidth(), contentAlignment = androidx.compose.ui.Alignment.Center) { Text(period.toString(), fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant) } } }
+        Column(Modifier.width(58.dp)) { Spacer(Modifier.height(42.dp)); for (period in 1..12) { val time = periods.firstOrNull { it.number == period }; Box(Modifier.height(56.dp).fillMaxWidth(), contentAlignment = androidx.compose.ui.Alignment.Center) { Column(horizontalAlignment = androidx.compose.ui.Alignment.CenterHorizontally) { Text(period.toString(), fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant); time?.let { Text(it.startTime, fontSize = 8.sp, color = MaterialTheme.colorScheme.onSurfaceVariant) } } } } }
         days.forEachIndexed { dayIndex, day -> Column(Modifier.width(92.dp)) {
             Box(Modifier.height(42.dp).fillMaxWidth(), contentAlignment = androidx.compose.ui.Alignment.Center) { Text("周$day", style = MaterialTheme.typography.labelMedium) }
             for (period in 1..12) {

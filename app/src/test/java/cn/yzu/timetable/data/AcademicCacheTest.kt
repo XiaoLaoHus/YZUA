@@ -12,6 +12,7 @@ class AcademicCacheTest {
             val file = dir.resolve("academic.json")
             val score = ScoreRecord("fixture", "1", "合成课程", "2", "必修", "", "", "", "优秀", "", "")
             val snapshot = AcademicSnapshot(owner = "fixture", semester = SemesterDates("2026-08-31", "2027-01-17"),
+                periods = listOf(PeriodTime(3, "09:55", "10:40")), academicYear = "2026-2027", currentWeek = 9,
                 lessons = listOf(ScheduleLesson("fixture", "F", "合成课程", "教师", "教室", 3, 1, 2, 1..19, weekNumbers = setOf(1, 3, 9, 19))),
                 scheduleUpdated = "2026-10-28", termScores = listOf(score), termScoresUpdated = "2026-10-28",
                 allScoresUpdated = "2026-10-28", examsUpdated = "2026-10-28", onboarded = true)

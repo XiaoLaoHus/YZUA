@@ -12,6 +12,9 @@ import java.time.LocalDate
 data class AcademicSnapshot(
     val owner: String = "",
     val semester: SemesterDates? = null,
+    val periods: List<PeriodTime> = emptyList(),
+    val academicYear: String? = null,
+    val currentWeek: Int? = null,
     val lessons: List<ScheduleLesson> = emptyList(),
     val scheduleUpdated: String? = null,
     val termScores: List<ScoreRecord> = emptyList(),
@@ -33,6 +36,7 @@ class AcademicCache(private val file: File? = null) {
     )
     private data class Document(
         val version: Int = 1, val owner: String = "", val semester: SemesterDates? = null,
+        val periods: List<PeriodTime>? = emptyList(), val academicYear: String? = null, val currentWeek: Int? = null,
         val lessons: List<LessonDto>? = emptyList(), val scheduleUpdated: String? = null,
         val termScores: List<ScoreRecord>? = emptyList(), val termScoresUpdated: String? = null,
         val allScores: List<ScoreRecord>? = emptyList(), val allScoresUpdated: String? = null,
@@ -48,6 +52,8 @@ class AcademicCache(private val file: File? = null) {
             val d = gson.fromJson(file.readText(Charsets.UTF_8), Document::class.java) ?: error("empty")
             require(d.version == 1)
             require(d.lessons != null)
+            require(d.periods != null && d.periods.all { it.number in 1..12 && it.startTime.matches(Regex("\\d{2}:\\d{2}")) && it.endTime.matches(Regex("\\d{2}:\\d{2}")) })
+            require(d.currentWeek == null || d.currentWeek in 1..30)
             d.semester?.validate()
             listOfNotNull(d.scheduleUpdated, d.termScoresUpdated, d.allScoresUpdated, d.examsUpdated).forEach { LocalDate.parse(it) }
             val lessons = d.lessons.orEmpty().map { l ->
@@ -65,13 +71,13 @@ class AcademicCache(private val file: File? = null) {
                 score.score.length; score.unpassedReason.length; score.englishCourseName.length; score.termLabel.length
             }
             exams.forEach { exam -> exam.courseName.length; exam.startTime.length; exam.endTime.length; exam.location.length; exam.note.length }
-            CacheRead(AcademicSnapshot(d.owner, d.semester, lessons, d.scheduleUpdated, termScores, d.termScoresUpdated, allScores, d.allScoresUpdated, exams, d.examsUpdated, d.onboarded))
+            CacheRead(AcademicSnapshot(d.owner, d.semester, d.periods.orEmpty(), d.academicYear, d.currentWeek, lessons, d.scheduleUpdated, termScores, d.termScoresUpdated, allScores, d.allScoresUpdated, exams, d.examsUpdated, d.onboarded))
         } catch (_: Exception) { CacheRead(AcademicSnapshot(), "本地数据损坏或格式不兼容，请在“我的”中登录重新导入。") }
     }
 
     @Synchronized fun write(s: AcademicSnapshot) {
         if (file == null) { memory = s; return }
-        val d = Document(owner = s.owner, semester = s.semester,
+        val d = Document(owner = s.owner, semester = s.semester, periods = s.periods, academicYear = s.academicYear, currentWeek = s.currentWeek,
             lessons = s.lessons.map { LessonDto(it.id, it.courseCode, it.courseName, it.teacher, it.classroom, it.dayOfWeek, it.startPeriod, it.endPeriod, it.weekNumbers.sorted(), it.colorIndex) },
             scheduleUpdated = s.scheduleUpdated, termScores = s.termScores, termScoresUpdated = s.termScoresUpdated,
             allScores = s.allScores, allScoresUpdated = s.allScoresUpdated, exams = s.exams, examsUpdated = s.examsUpdated, onboarded = s.onboarded)

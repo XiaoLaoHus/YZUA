@@ -57,6 +57,10 @@ import java.util.Locale
             Card(Modifier.fillMaxWidth().clickable { onLesson(lesson) }) {
                 Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(7.dp)) {
                     Text("第 ${lesson.startPeriod}–${lesson.endPeriod} 节", color = MaterialTheme.colorScheme.primary, style = MaterialTheme.typography.labelLarge)
+                    state.periods.firstOrNull { it.number == lesson.startPeriod }?.let { start ->
+                        val end = state.periods.firstOrNull { it.number == lesson.endPeriod } ?: start
+                        Text("${start.startTime}–${end.endTime}", color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.labelMedium)
+                    }
                     Text(lesson.courseName, style = MaterialTheme.typography.titleLarge)
                     Text(lesson.classroom, style = MaterialTheme.typography.bodyLarge)
                     if (lesson.teacher.isNotBlank()) Text(lesson.teacher, color = MaterialTheme.colorScheme.onSurfaceVariant)
