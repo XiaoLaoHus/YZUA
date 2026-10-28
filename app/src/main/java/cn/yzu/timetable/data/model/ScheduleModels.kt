@@ -17,6 +17,7 @@ data class ScheduleLesson(
     val endPeriod: Int,
     val weeks: IntRange,
     val colorIndex: Int = 0,
+    val weekNumbers: Set<Int> = weeks.toSet(),
 ) {
-    fun occursInWeek(week: Int): Boolean = week in weeks
+    fun occursInWeek(week: Int): Boolean = week in weekNumbers
 }

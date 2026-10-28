@@ -6,11 +6,14 @@
 
 - `login(account, password)` 返回 `UserSession`，包含学号、展示名、令牌和来源标记。
 - `getSchedule(session, term)` 返回统一的 `ScheduleLesson`，页面不感知 URP 字段名。
-- 当前 `DemoUrpDataSource` 仅用于 UI 验收，所有课程都标记为“演示数据”。
+- `UrpHttpDataSource` 默认连接 `http://ydjwxs.yzu.edu.cn`，用内存 Cookie 保持会话。
+- 课表请求使用扬大公开适配中的 `planCode` 和 `ajaxStudentSchedule/callback` 路径。
+- `UrpParser` 支持 `xkxx/timeAndPlaceList/jcsjbs` JSON、经典 URP HTML 表格、位图周次和单双周文本。
+- `DemoUrpDataSource` 保留给离线 UI 和自动化测试；应用默认使用 URP 数据源。
 
 ## 接通扬大系统所需信息
 
-1. URP 登录 Base URL（例如 `https://jwgl.example.edu.cn`）。
+1. 默认 Base URL 是 `http://ydjwxs.yzu.edu.cn`，后续迁移可在 `UrpConfig` 替换为 HTTPS 地址。
 2. 登录请求方法、路径、字段名、验证码或二次认证要求。
 3. 登录成功响应中的 JWT/Session 字段和过期规则。
 4. 学生课表接口路径、学期参数格式、课程 JSON/HTML 响应样例。
@@ -18,6 +21,6 @@
 
 ## 推荐实现
 
-使用 Retrofit + OkHttp 创建 `UrpHttpDataSource`：登录后将 JWT 放入 `Authorization: Bearer <token>`，把响应 DTO 映射为 `ScheduleLesson`。如果扬大 URP 只提供网页端表单，则用 OkHttp CookieJar 保持会话，并在独立 parser 中解析 HTML；账号密码仅在请求期间使用，不写入日志或明文存储。
+当前实现使用 OkHttp CookieJar 保持网页会话，并在独立 parser 中解析 JSON/HTML；账号密码只用于当前登录请求，不写入日志或明文存储。服务器返回验证码、统一认证页面或 WebVPN 跳转时，应用会提示先在校园网页完成认证，不绕过验证码。
 
-参考思路：`xzystarts/urp-core` 的 JWT 用户会话与学生课表查询、`MyStudyHelper` 的 URP 网页解析流程。真实接口启用前应使用脱敏的登录与课表响应样例补充契约测试。
+参考思路：`xzystarts/urp-core` 的会话边界、`MyStudyHelper` 的 URP 网页解析流程，以及扬大 WebVPN 课表适配中的 `planCode` 查询方式。仓库测试使用脱敏合成响应，真实账号登录仍需在校园网络/统一认证环境中验证。

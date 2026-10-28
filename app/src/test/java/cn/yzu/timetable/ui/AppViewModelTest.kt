@@ -11,6 +11,7 @@ import org.junit.After
 import org.junit.Assert.*
 import org.junit.Before
 import org.junit.Test
+import cn.yzu.timetable.data.urp.DemoUrpDataSource
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class AppViewModelTest {
@@ -18,10 +19,10 @@ class AppViewModelTest {
     @Before fun setUp() { Dispatchers.setMain(dispatcher) }
     @After fun tearDown() { Dispatchers.resetMain() }
 
-    @Test fun blankInputDoesNotLogin() { val vm = AppViewModel(); vm.login(); assertEquals("请输入学号和密码", vm.state.value.error) }
-    @Test fun weekIsClamped() { val vm = AppViewModel(); repeat(3) { vm.shiftWeek(-1) }; assertEquals(1, vm.state.value.week); repeat(30) { vm.shiftWeek(1) }; assertEquals(20, vm.state.value.week) }
+    @Test fun blankInputDoesNotLogin() { val vm = AppViewModel(DemoUrpDataSource()); vm.login(); assertEquals("请输入学号和密码", vm.state.value.error) }
+    @Test fun weekIsClamped() { val vm = AppViewModel(DemoUrpDataSource()); repeat(3) { vm.shiftWeek(-1) }; assertEquals(1, vm.state.value.week); repeat(30) { vm.shiftWeek(1) }; assertEquals(20, vm.state.value.week) }
     @Test fun logoutResetsState() = runTest(dispatcher) {
-        val vm = AppViewModel()
+        val vm = AppViewModel(DemoUrpDataSource())
         vm.setAccount("id")
         vm.setPassword("pw")
         vm.login()

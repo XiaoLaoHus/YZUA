@@ -2,7 +2,10 @@ package cn.yzu.timetable.data.urp
 
 /** Real URP values are intentionally supplied at build/deployment time. */
 data class UrpConfig(
-    val baseUrl: String = "",
-    val loginPath: String = "/api/login",
-    val schedulePath: String = "/api/student/schedule",
+    val baseUrl: String = "http://ydjwxs.yzu.edu.cn",
+    val loginPath: String = "/mobile/login",
+    val schedulePath: String = "/student/courseSelect/thisSemesterCurriculum/ajaxStudentSchedule/callback",
+    val accountField: String = "username",
+    val passwordField: String = "password",
+    val termField: String = "planCode",
 )

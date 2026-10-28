@@ -4,7 +4,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import cn.yzu.timetable.data.SessionRepository
 import cn.yzu.timetable.data.model.*
-import cn.yzu.timetable.data.urp.DemoUrpDataSource
+import cn.yzu.timetable.data.urp.UrpHttpDataSource
 import cn.yzu.timetable.data.urp.UrpScheduleDataSource
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -26,7 +26,7 @@ data class AppUiState(
 )
 
 class AppViewModel(
-    private val source: UrpScheduleDataSource = DemoUrpDataSource(),
+    private val source: UrpScheduleDataSource = UrpHttpDataSource(),
     private val sessions: SessionRepository = SessionRepository(),
 ) : ViewModel() {
     private val mutable = MutableStateFlow(AppUiState())

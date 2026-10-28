@@ -34,3 +34,7 @@
 ## URP 接入
 
 真实扬大 URP 的 Base URL、登录字段与课表响应格式需要根据学校部署配置。适配边界见 [docs/urp-integration.md](docs/urp-integration.md)，数据源接口位于 `app/src/main/java/cn/yzu/timetable/data/urp/`。
+
+## URP 接入进度
+
+已加入扬州大学移动教务入口 http://ydjwxs.yzu.edu.cn/mobile/index 的 Cookie 会话数据源，课表请求采用 planCode 和 jaxStudentSchedule/callback，并支持 JSON/HTML 解析。若学校网络要求验证码或 WebVPN，应用会提示在校园网页完成认证。

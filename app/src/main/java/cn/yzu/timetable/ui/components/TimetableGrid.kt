@@ -27,8 +27,9 @@ private val accents = listOf(Color(0xFF0284C7), Color(0xFF7C3AED), Color(0xFF16A
                 val lesson = lessons.firstOrNull { it.dayOfWeek == dayIndex + 1 && it.startPeriod == period && it.occursInWeek(week) }
                 val occupied = lessons.any { it.dayOfWeek == dayIndex + 1 && period > it.startPeriod && period <= it.endPeriod && it.occursInWeek(week) }
                 if (occupied && lesson == null) continue
-                Box(Modifier.height(56.dp).fillMaxWidth().padding(2.dp)) {
-                    if (lesson != null) Card(Modifier.fillMaxSize().clickable { onLessonClick(lesson) }, colors = CardDefaults.cardColors(containerColor = palette[lesson.colorIndex % palette.size]), shape = RoundedCornerShape(10.dp)) { Column(Modifier.padding(7.dp)) { Text(lesson.courseName, style = MaterialTheme.typography.labelMedium, color = accents[lesson.colorIndex % accents.size], maxLines = 2); Spacer(Modifier.height(2.dp)); Text(lesson.classroom, style = MaterialTheme.typography.labelSmall, maxLines = 1) } }
+                val span = lesson?.let { (it.endPeriod - it.startPeriod + 1).coerceAtLeast(1) } ?: 1
+                Box(Modifier.height(56.dp * span).fillMaxWidth().padding(2.dp)) {
+                    if (lesson != null) Card(Modifier.fillMaxSize().clickable { onLessonClick(lesson) }, colors = CardDefaults.cardColors(containerColor = palette[lesson.colorIndex % palette.size]), shape = RoundedCornerShape(10.dp)) { Column(Modifier.padding(7.dp)) { Text(lesson.courseName, style = MaterialTheme.typography.labelMedium, color = accents[lesson.colorIndex % accents.size], maxLines = 3); Spacer(Modifier.height(2.dp)); Text(lesson.classroom, style = MaterialTheme.typography.labelSmall, maxLines = 2); Text("第 ${lesson.startPeriod}-${lesson.endPeriod} 节", style = MaterialTheme.typography.labelSmall, maxLines = 1) } }
                 }
             }
         } }
