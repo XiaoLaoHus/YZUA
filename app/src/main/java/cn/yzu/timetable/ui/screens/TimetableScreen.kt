@@ -1,26 +1,105 @@
 package cn.yzu.timetable.ui.screens
 
+import androidx.compose.animation.*
+import androidx.compose.animation.core.spring
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.pager.HorizontalPager
+import androidx.compose.foundation.pager.rememberPagerState
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.ChevronLeft
-import androidx.compose.material.icons.filled.ChevronRight
-import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
-import androidx.compose.runtime.Composable
+import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import cn.yzu.timetable.data.model.ScheduleLesson
 import cn.yzu.timetable.ui.AppUiState
 import cn.yzu.timetable.ui.AppViewModel
-import cn.yzu.timetable.ui.components.TimetableGrid
+import cn.yzu.timetable.ui.components.*
+import cn.yzu.timetable.ui.theme.LocalGlass
+import cn.yzu.timetable.ui.theme.TabularNumbers
+import java.time.LocalDate
+import java.time.format.DateTimeFormatter
 
-@Composable fun TimetableScreen(state: AppUiState, vm: AppViewModel, onLessonClick: (cn.yzu.timetable.data.model.ScheduleLesson) -> Unit) {
-    Column(Modifier.fillMaxSize().padding(horizontal = 16.dp)) {
-        Row(Modifier.fillMaxWidth().padding(top = 18.dp), horizontalArrangement = Arrangement.SpaceBetween) { Column { Text("我的课表", style = MaterialTheme.typography.headlineMedium); Text(listOfNotNull(state.academicYear, state.term.label).joinToString(" "), color = MaterialTheme.colorScheme.onSurfaceVariant); Text(state.session?.source?.label ?: "扬大 URP", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary) }; IconButton(vm::refresh) { Icon(Icons.Default.Refresh, "刷新") } }
-        Spacer(Modifier.height(14.dp)); Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer), shape = MaterialTheme.shapes.large) { Row(Modifier.fillMaxWidth().padding(14.dp), horizontalArrangement = Arrangement.SpaceBetween) { IconButton({ vm.shiftWeek(-1) }) { Icon(Icons.Default.ChevronLeft, "上一周") }; Column(horizontalAlignment = androidx.compose.ui.Alignment.CenterHorizontally) { Text("第 ${state.week} 周", style = MaterialTheme.typography.titleMedium); Text("点击左右切换周次", style = MaterialTheme.typography.labelSmall) }; IconButton({ vm.shiftWeek(1) }) { Icon(Icons.Default.ChevronRight, "下一周") } } }
-        TextButton(vm::resetWeek) { Text("回到本周") }
-        state.semesterReminder?.let { Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.primary, modifier = Modifier.padding(bottom = 6.dp)) }
-        state.scheduleUpdated?.let { Text("本地课表 · 更新于 $it", style = MaterialTheme.typography.labelSmall) }
-        state.error?.let { Text(it, color = MaterialTheme.colorScheme.error, modifier = Modifier.padding(bottom = 6.dp)) }
-        TimetableGrid(state.week, state.lessons, state.periods, onLessonClick)
+private val MD = DateTimeFormatter.ofPattern("M/d")
+
+@Composable fun TimetableScreen(state: AppUiState, vm: AppViewModel, onLessonClick: (ScheduleLesson) -> Unit, onProfile: () -> Unit = {}, onCalibrate: () -> Unit = onProfile) {
+    val prefs = LocalDisplayPreferences.current
+    val now by rememberNow()
+    var settingsOpen by remember { mutableStateOf(false) }
+    val total = state.term.totalWeeks.coerceAtLeast(1)
+    val week = state.week.coerceIn(1, total)
+    val thisWeek = state.semester?.weekOn(state.today)
+    val weekStart: (Int) -> LocalDate? = { w -> runCatching { state.semester?.start()?.plusWeeks((w - 1).toLong()) }.getOrNull() }
+    val start = weekStart(week)
+    val refDate = start?.let { s -> if (!state.today.isBefore(s) && state.today.isBefore(s.plusDays(7))) state.today else s } ?: state.today
+    val season = YzuTimetable.season(refDate, prefs.seasonMode)
+    val weekendLessons = state.lessons.count { it.dayOfWeek >= 6 && it.occursInWeek(week) }
+    val days = if (prefs.hideWeekend) (1..5).toList() else (1..7).toList()
+
+    Column(Modifier.fillMaxSize().statusBarsPadding()) {
+        Row(Modifier.fillMaxWidth().padding(start = 20.dp, end = 16.dp, top = 12.dp), verticalAlignment = Alignment.CenterVertically) {
+            Column(Modifier.weight(1f)) {
+                AnimatedContent(week, transitionSpec = {
+                    val dir = if (targetState > initialState) 1 else -1
+                    (slideInVertically(spring(dampingRatio = 0.8f, stiffness = 380f)) { it * dir / 2 } + fadeIn()) togetherWith
+                        (slideOutVertically(spring(dampingRatio = 0.8f, stiffness = 380f)) { -it * dir / 2 } + fadeOut()) using SizeTransform(clip = false)
+                }, label = "weekTitle") { w ->
+                    Row(verticalAlignment = Alignment.Bottom) {
+                        Text("第 $w 周", style = MaterialTheme.typography.headlineLarge.merge(TabularNumbers))
+                        if (w == thisWeek) { Spacer(Modifier.width(8.dp)); InfoChip("本周", Modifier.padding(bottom = 6.dp)) }
+                    }
+                }
+                Text(listOfNotNull(start?.let { "${it.format(MD)} – ${it.plusDays(6).format(MD)}" }, "${season.label}作息").joinToString(" · "),
+                    style = MaterialTheme.typography.bodyMedium, color = LocalGlass.current.textMuted)
+            }
+            GlassIconButton(Icons.Default.ChevronLeft, "上一周", { vm.shiftWeek(-1) }, enabled = week > 1, size = 38.dp)
+            Spacer(Modifier.width(6.dp))
+            GlassIconButton(Icons.Default.ChevronRight, "下一周", { vm.shiftWeek(1) }, enabled = week < total, size = 38.dp)
+            Spacer(Modifier.width(6.dp))
+            GlassIconButton(Icons.Default.Tune, "课表设置", { settingsOpen = true }, size = 38.dp)
+        }
+        Column(Modifier.padding(horizontal = 14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Spacer(Modifier.height(2.dp))
+            LoadingStrip(state.loading)
+            AnimatedVisibility(thisWeek != null && week != thisWeek) {
+                GlassCapsuleButton("回到本周 · 第 $thisWeek 周", vm::resetWeek, icon = Icons.Default.Today, modifier = Modifier.height(40.dp))
+            }
+            state.semesterReminder?.let { StatusBanner(it, Icons.Default.EventNote, BannerTone.Warning, action = "校准", onAction = onCalibrate) }
+            state.error?.let { StatusBanner(it, Icons.Default.ErrorOutline, BannerTone.Error) }
+            if (prefs.hideWeekend && weekendLessons > 0) StatusBanner("本周末有 $weekendLessons 节课已隐藏", Icons.Default.VisibilityOff,
+                action = "显示", onAction = { prefs.updateHideWeekend(false) })
+        }
+        if (state.scheduleUpdated == null && state.lessons.isEmpty()) {
+            Box(Modifier.padding(16.dp)) {
+                EmptyState(Icons.Default.CalendarMonth, "还没有导入课表", "连接校园网或手机 VPN 后，在“我的”中登录统一认证即可导入本学期课表。", action = "前往我的", onAction = onProfile)
+            }
+            return@Column
+        }
+        Spacer(Modifier.height(8.dp))
+        val pager = rememberPagerState(initialPage = week - 1) { total }
+        val latestWeek by rememberUpdatedState(week)
+        LaunchedEffect(week) { if (pager.currentPage != week - 1) pager.animateScrollToPage(week - 1, animationSpec = spring(dampingRatio = 0.85f, stiffness = 260f)) }
+        LaunchedEffect(pager) { snapshotFlow { pager.settledPage }.collect { page -> if (page + 1 != latestWeek) vm.shiftWeek(page + 1 - latestWeek) } }
+        HorizontalPager(pager, Modifier.weight(1f), beyondViewportPageCount = 1, pageSpacing = 12.dp, contentPadding = PaddingValues(horizontal = 8.dp), key = { it }) { page ->
+            val w = page + 1
+            val pageStart = weekStart(w)
+            val pageRef = pageStart?.let { s -> if (!state.today.isBefore(s) && state.today.isBefore(s.plusDays(7))) state.today else s } ?: state.today
+            GlassCard(Modifier.fillMaxSize(), shape = RoundedCornerShape(topStart = 26.dp, topEnd = 26.dp), contentPadding = PaddingValues(horizontal = 4.dp)) {
+                TimetableDayHeader(pageStart, state.today, days)
+                Column(Modifier.fillMaxWidth().verticalScroll(rememberScrollState())) {
+                    TimetableGrid(w, state.lessons, state.periods, pageStart, state.today, now, days, YzuTimetable.season(pageRef, prefs.seasonMode), onLessonClick)
+                    state.scheduleUpdated?.let {
+                        Text("本地课表 · 更新于 $it", style = MaterialTheme.typography.labelSmall, color = LocalGlass.current.textFaint,
+                            modifier = Modifier.align(Alignment.CenterHorizontally).padding(top = 12.dp))
+                    }
+                    Spacer(Modifier.height(LocalBottomBarSpace.current + 12.dp))
+                }
+            }
+        }
     }
+    if (settingsOpen) TimetableSettingsSheet(state, season, onRefresh = vm::refresh, onDismiss = { settingsOpen = false })
 }
