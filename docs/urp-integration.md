@@ -16,7 +16,7 @@ Base URL：`http://ydjwxs.yzu.edu.cn`。学校当前使用 HTTP 教务入口；S
 
 ## 代码结构
 
-- `SsoLoginActivity`：学校网页登录，精确匹配教务主机和 `/index`；不注入密码、Cookie 或登录脚本，不忽略 SSL 错误。
+- `SsoLoginActivity`：学校网页登录，精确匹配教务主机及 `/index`、`/mobile/index`；不注入密码、Cookie 或登录脚本，不忽略 SSL 错误。登录后自动返回 App；若学校跳到课表子页，可点击顶部“返回 App”导航至同源首页，随后由 API 验证会话。“取消登录”和系统返回键关闭网页并清理 WebView。App 内退出入口是“我的 → 退出登录”，该操作废弃本地 API 会话，不代表撤销学校全部 SSO 会话。
 - `SsoCookieHandoff`：一次性进程内交接 Cookie，不经 Intent 或 Bundle。
 - `UrpHttpDataSource`：IO 线程请求；每次登录独立 CookieJar / 会话令牌，退出取消旧 Call 并废弃 CookieJar；旧响应不能清理或污染新账号会话。
 - `UrpParser`：课表、成绩和 FullCalendar 事件解析；错误响应不冒充空列表，成绩关闭会抛出明确提示。
