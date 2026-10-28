@@ -24,9 +24,10 @@ import cn.yzu.timetable.data.model.ExamSchedule
     Spacer(Modifier.height(14.dp))
 }
 
-@Composable fun ScoresScreen(state: AppUiState, onRefresh: () -> Unit, onScopeChange: (Boolean) -> Unit) {
+@Composable fun ScoresScreen(state: AppUiState, onRefresh: () -> Unit, onScopeChange: (Boolean) -> Unit, onLogin: () -> Unit) {
     Column(Modifier.fillMaxSize().padding(20.dp)) {
         AcademicHeader("成绩查询", "扬大 URP 成绩查询", state, onRefresh)
+        AcademicRefreshNotice(state, state.scoresUpdated, onLogin)
         Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
             FilterChip(!state.allScoreTerms, { onScopeChange(false) }, { Text("本学期") }, enabled = !state.loading)
             FilterChip(state.allScoreTerms, { onScopeChange(true) }, { Text("全部学期") }, enabled = !state.loading)
@@ -55,9 +56,10 @@ import cn.yzu.timetable.data.model.ExamSchedule
     }
 }
 
-@Composable fun ExamsScreen(state: AppUiState, onRefresh: () -> Unit) {
+@Composable fun ExamsScreen(state: AppUiState, onRefresh: () -> Unit, onLogin: () -> Unit) {
     Column(Modifier.fillMaxSize().padding(20.dp)) {
         AcademicHeader("考试安排", "查询当前日期前后约三个月", state, onRefresh)
+        AcademicRefreshNotice(state, state.examsUpdated, onLogin)
         state.examError?.let { Text(it, color = MaterialTheme.colorScheme.error, modifier = Modifier.padding(bottom = 10.dp)) }
         if (state.examsLoaded && state.exams.isEmpty() && state.examError == null && !state.loading) {
             Text("查询时间内没有和你相关的考试信息", color = MaterialTheme.colorScheme.onSurfaceVariant)
@@ -78,4 +80,13 @@ import cn.yzu.timetable.data.model.ExamSchedule
             }
         }
     }
+}
+
+@Composable private fun AcademicRefreshNotice(state: AppUiState, updated: String?, onLogin: () -> Unit) {
+    Text(updated?.let { "本地信息 · 更新于 $it" } ?: "尚未保存此范围的信息", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+    if (state.session == null) {
+        Text("需要最新信息时，请登录一次进行刷新。", style = MaterialTheme.typography.bodySmall)
+        TextButton(onLogin, enabled = !state.loading) { Text("前往我的登录刷新") }
+    }
+    Spacer(Modifier.height(8.dp))
 }

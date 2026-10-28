@@ -16,6 +16,16 @@ class UrpHttpDataSourceTest {
     @Before fun setUp() { server = MockWebServer(); server.start() }
     @After fun tearDown() { server.shutdown() }
 
+    @Test fun optionalCalendarRedirectDoesNotRetireVerifiedApiSession() = runBlocking {
+        server.enqueue(MockResponse().setBody("{\"xkxx\":[]}"))
+        server.enqueue(MockResponse().setResponseCode(302).addHeader("Location", "/mobile/index"))
+        server.enqueue(MockResponse().setBody("""{"xkxx":[{"a":{"courseName":"合成课","timeAndPlaceList":[{"classDay":"1","classSessions":"1","continuingSession":"1","classWeek":"1"}]}}]}"""))
+        val source = UrpHttpDataSource(UrpConfig(server.url("/").toString().trimEnd('/')))
+        val session = source.loginWithSsoCookie("", "JSESSIONID=fixture")
+        runCatching { source.getSemesterDates(session, java.time.LocalDate.parse("2026-10-28")) }
+        assertEquals(1, source.getSchedule(session, Term("current", "当前")).size)
+    }
+
     @Test fun loginChecksProtectedScheduleApiWithoutDesktopLogoutMarkup() = runBlocking {
         server.enqueue(MockResponse().setBody("{\"xkxx\":[]}"))
         val source = UrpHttpDataSource(UrpConfig(server.url("/").toString().trimEnd('/')))

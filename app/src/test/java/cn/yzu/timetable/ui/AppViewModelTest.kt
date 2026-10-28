@@ -36,8 +36,8 @@ class AppViewModelTest {
         assertEquals(AppScreen.Home, vm.state.value.screen)
         vm.logout()
         assertNull(vm.state.value.session)
-        assertTrue(vm.state.value.lessons.isEmpty())
-        assertEquals(AppScreen.Login, vm.state.value.screen)
+        assertTrue(vm.state.value.lessons.isNotEmpty())
+        assertEquals(AppScreen.Home, vm.state.value.screen)
     }
 
     @Test fun scoreFailureIsVisibleWhileOtherQueriesSucceed() = runTest(dispatcher) {
@@ -68,7 +68,7 @@ class AppViewModelTest {
         vm.logout()
         waiting.complete(Unit)
         advanceUntilIdle()
-        assertEquals(AppScreen.Login, vm.state.value.screen)
+        assertEquals(AppScreen.Home, vm.state.value.screen)
         assertNull(vm.state.value.session)
         assertTrue(vm.state.value.lessons.isEmpty())
     }
@@ -82,6 +82,7 @@ class AppViewModelTest {
         advanceUntilIdle()
         assertTrue(vm.state.value.scores.isNotEmpty())
         vm.setAllScoreTerms(true)
+        vm.refresh()
         advanceUntilIdle()
         assertTrue(vm.state.value.allScoreTerms)
         assertTrue(vm.state.value.scoresLoaded)

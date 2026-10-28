@@ -110,6 +110,12 @@ class UrpHttpDataSource(
 
     override fun logout() { synchronized(sessionLock) { transport?.retire(); transport = null } }
 
+    override suspend fun getSemesterDates(session: UserSession, date: LocalDate): cn.yzu.timetable.data.SemesterDates? = withContext(Dispatchers.IO) {
+        // 日期校准失败不影响已验证的课表 API 会话。
+        val page = read(ensureSession(session), resolve(config.homePath), xhr = false, optionalMetadata = true)
+        cn.yzu.timetable.data.AcademicCalendar.fromSchoolHome(page, date)
+    }
+
     /** 将验证过程中轮换后的教务 Cookie 交接给后续 API 会话，调用方不得记录或持久化。 */
     fun verifiedCookieHeader(session: UserSession): String {
         val current = ensureSession(session)
@@ -136,7 +142,7 @@ class UrpHttpDataSource(
 
     private fun read(current: SessionTransport, path: String, xhr: Boolean = false) = read(current, resolve(path), xhr)
 
-    private fun read(current: SessionTransport, url: HttpUrl, xhr: Boolean, form: FormBody? = null): String {
+    private fun read(current: SessionTransport, url: HttpUrl, xhr: Boolean, form: FormBody? = null, optionalMetadata: Boolean = false): String {
         val request = Request.Builder().url(url).header("User-Agent", USER_AGENT)
             .header("Accept", if (xhr) "application/json, text/javascript, */*; q=0.01" else "text/html,application/xhtml+xml")
             .apply { if (xhr) header("X-Requested-With", "XMLHttpRequest"); if (form == null) get() else post(form) }.build()
@@ -150,6 +156,8 @@ class UrpHttpDataSource(
         } finally { synchronized(current.calls) { current.calls.remove(call) } }
         return response.use {
             if (transport !== current) throw UrpLoginException("教务会话已结束")
+            if (optionalMetadata && (it.code == 401 || it.code == 403 || it.code in 300..399))
+                throw UrpParseException("校历信息暂不可用，请手动校准学期日期")
             if (it.code == 401 || it.code == 403 || it.code in 300..399)
                 sessionExpired(current, "教务接口未接受登录会话（SSO-HTTP-${it.code}），请在学校网页重新确认登录")
             if (!it.isSuccessful) throw IOException("教务查询失败（HTTP ${it.code}），请稍后重试")
@@ -157,6 +165,8 @@ class UrpHttpDataSource(
             if (body.isBlank()) throw UrpParseException("教务系统返回空响应")
             if (body.trimStart().startsWith("<")) {
                 val document = Jsoup.parse(body)
+                if (optionalMetadata && document.select("input[type=password], form[action*=sso], form[action*=login]").isNotEmpty())
+                    throw UrpParseException("校历信息暂不可用，请手动校准学期日期")
                 if (document.select("input[type=password], form[action*=sso], form[action*=login]").isNotEmpty() ||
                     document.title().contains("统一身份认证"))
                     sessionExpired(current, "教务接口返回登录页面（SSO-LOGIN-PAGE），请在学校网页完成认证")

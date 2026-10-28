@@ -25,6 +25,7 @@ class SsoLoginActivity : Activity() {
     private val loginScope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
     private var verificationSource: UrpHttpDataSource? = null
     private lateinit var status: TextView
+    private val account: String get() = intent.getStringExtra("account").orEmpty()
 
     @SuppressLint("SetJavaScriptEnabled")
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -112,7 +113,7 @@ class SsoLoginActivity : Activity() {
                     val cookie = manager.getCookie(config.baseUrl + config.schedulePath).orEmpty()
                     if (cookie.isBlank()) throw UrpLoginException("未读取到教务 Cookie（SSO-COOKIE-EMPTY），请完成学校网页登录后重试")
                     try {
-                        val session = source.loginWithSsoCookie("", cookie)
+                        val session = source.loginWithSsoCookie(account, cookie)
                         verifiedCookie = source.verifiedCookieHeader(session)
                         break
                     } catch (error: UrpLoginException) {

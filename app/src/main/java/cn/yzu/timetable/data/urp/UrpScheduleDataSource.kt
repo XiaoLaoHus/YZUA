@@ -13,5 +13,6 @@ interface UrpScheduleDataSource {
     suspend fun getScores(session: UserSession): List<ScoreRecord>
     suspend fun getAllScores(session: UserSession): List<ScoreRecord> = getScores(session)
     suspend fun getExams(session: UserSession): List<ExamSchedule>
+    suspend fun getSemesterDates(session: UserSession, date: java.time.LocalDate): cn.yzu.timetable.data.SemesterDates? = null
     fun logout() {}
 }
