@@ -1,6 +1,7 @@
 package cn.yzu.timetable.ui.components
 
 import android.content.Context
+import cn.yzu.timetable.reminder.ClassReminders
 import androidx.compose.runtime.*
 import androidx.compose.ui.platform.LocalContext
 import cn.yzu.timetable.data.model.PeriodTime
@@ -91,11 +92,24 @@ object YzuTimetable {
 /** 仅界面显示偏好（隐藏周末、作息季节），独立于教务缓存，不含任何账号或查询数据。 */
 @Stable
 class DisplayPreferences internal constructor(private val context: Context) {
-    private val prefs = context.getSharedPreferences("yzua_display_prefs", Context.MODE_PRIVATE)
+    private val prefs = context.getSharedPreferences(ClassReminders.PREFS, Context.MODE_PRIVATE)
     var hideWeekend by mutableStateOf(prefs.getBoolean(KEY_WEEKEND, false))
         private set
     var seasonMode by mutableStateOf(runCatching { SeasonMode.valueOf(prefs.getString(KEY_SEASON, null) ?: "Auto") }.getOrDefault(SeasonMode.Auto))
         private set
+
+    var reminderEnabled by mutableStateOf(prefs.getBoolean(ClassReminders.KEY_REMINDER, true))
+        private set
+    var reminderLead by mutableIntStateOf(prefs.getInt(ClassReminders.KEY_LEAD, ClassReminders.DEFAULT_LEAD))
+        private set
+    var autoMute by mutableStateOf(prefs.getBoolean(ClassReminders.KEY_MUTE, false))
+        private set
+    var notificationAsked by mutableStateOf(prefs.getBoolean(KEY_NOTIFY_ASKED, false))
+        private set
+    fun updateReminder(value: Boolean) { reminderEnabled = value; prefs.edit().putBoolean(ClassReminders.KEY_REMINDER, value).apply() }
+    fun updateLead(minutes: Int) { reminderLead = minutes; prefs.edit().putInt(ClassReminders.KEY_LEAD, minutes).apply() }
+    fun updateAutoMute(value: Boolean) { autoMute = value; prefs.edit().putBoolean(ClassReminders.KEY_MUTE, value).apply() }
+    fun markNotificationAsked() { notificationAsked = true; prefs.edit().putBoolean(KEY_NOTIFY_ASKED, true).apply() }
 
     /** 首次使用须知是否已同意；仅记录勾选状态。 */
     var disclaimerAccepted by mutableStateOf(prefs.getBoolean(KEY_DISCLAIMER, false))
@@ -105,7 +119,7 @@ class DisplayPreferences internal constructor(private val context: Context) {
     fun updateHideWeekend(value: Boolean) { hideWeekend = value; prefs.edit().putBoolean(KEY_WEEKEND, value).apply() }
     fun updateSeasonMode(value: SeasonMode) { seasonMode = value; prefs.edit().putString(KEY_SEASON, value.name).apply() }
 
-    private companion object { const val KEY_WEEKEND = "hide_weekend"; const val KEY_SEASON = "season_mode"; const val KEY_DISCLAIMER = "disclaimer_v1_accepted" }
+    private companion object { const val KEY_WEEKEND = "hide_weekend"; const val KEY_SEASON = ClassReminders.KEY_SEASON; const val KEY_NOTIFY_ASKED = "notification_permission_asked"; const val KEY_DISCLAIMER = "disclaimer_v1_accepted" }
 }
 
 val LocalDisplayPreferences = staticCompositionLocalOf<DisplayPreferences> { error("DisplayPreferences not provided") }

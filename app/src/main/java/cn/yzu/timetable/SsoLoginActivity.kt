@@ -3,7 +3,6 @@ package cn.yzu.timetable
 import android.annotation.SuppressLint
 import android.app.Activity
 import android.graphics.Bitmap
-import android.graphics.Color
 import android.net.http.SslError
 import android.os.Bundle
 import android.os.SystemClock
@@ -55,26 +54,27 @@ class SsoLoginActivity : Activity() {
         if (manual) { flow.useManualLogin(); password = "" }
         SsoCookieHandoff.clear()
         val padding = (12 * resources.displayMetrics.density).toInt()
+        val style = SsoLoginStyle(this)
+        style.applyWindow(window)
         status = TextView(this).apply {
             setText(if (manual) R.string.sso_manual_hint else R.string.sso_connecting)
-            textSize = 16f
-            setPadding(padding, padding, padding, padding)
+            style.statusText(this)
         }
-        progress = ProgressBar(this).apply { visibility = if (manual) View.GONE else View.VISIBLE }
+        progress = ProgressBar(this).apply { visibility = if (manual) View.GONE else View.VISIBLE; style.spinner(this) }
         val root = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             gravity = Gravity.CENTER_HORIZONTAL
             fitsSystemWindows = true
-            setBackgroundColor(Color.WHITE)
-            addView(status)
-            addView(progress)
+            background = style.pageBackground()
         }
         manualButton = Button(this).apply {
             text = if (manual) "重新打开学校网页登录" else "切换学校网页登录"
+            style.secondaryButton(this)
             setOnClickListener { showManualLogin(reload = manual) }
         }
         returnButton = Button(this).apply {
             setText(R.string.sso_return_to_app)
+            style.primaryButton(this)
             visibility = if (manual) View.VISIBLE else View.GONE
             setOnClickListener {
                 if (active && !verifying) {
@@ -85,12 +85,14 @@ class SsoLoginActivity : Activity() {
                 }
             }
         }
-        root.addView(manualButton)
-        root.addView(returnButton)
-        root.addView(Button(this).apply {
+        val cancelButton = Button(this).apply {
             text = "取消登录"
+            style.textButton(this)
             setOnClickListener { setResult(RESULT_CANCELED); finish() }
-        })
+        }
+        root.addView(style.topBar(cancelButton, manualButton))
+        root.addView(style.statusCard(status, progress))
+        root.addView(returnButton, style.fullWidthParams())
         webView = WebView(this).apply {
             // A real phone viewport remains laid out beneath the native cover.
             alpha = if (manual) 1f else 0f
@@ -137,14 +139,14 @@ class SsoLoginActivity : Activity() {
             setText(R.string.sso_native_hint)
             gravity = Gravity.CENTER
             setPadding(padding, padding, padding, padding)
-            setBackgroundColor(Color.WHITE)
+            style.cover(this)
             isClickable = true
             visibility = if (manual) View.GONE else View.VISIBLE
         }
         root.addView(FrameLayout(this).apply {
             addView(webView, FrameLayout.LayoutParams(-1, -1))
             addView(browserCover, FrameLayout.LayoutParams(-1, -1))
-        }, LinearLayout.LayoutParams(-1, 0, 1f))
+        }, style.browserParams())
         setContentView(root)
         val manager = CookieManager.getInstance()
         manager.setAcceptCookie(true)

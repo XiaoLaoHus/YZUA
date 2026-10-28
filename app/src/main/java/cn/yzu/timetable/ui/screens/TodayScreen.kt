@@ -48,6 +48,8 @@ private fun classify(lessons: List<ScheduleLesson>, season: ScheduleSeason, fall
     val glass = LocalGlass.current
     val clock by rememberNow()
     val now = previewTime ?: clock
+    var settingsOpen by remember { mutableStateOf(false) }
+    if (settingsOpen) TodaySettingsSheet { settingsOpen = false }
     val season = YzuTimetable.season(state.today, prefs.seasonMode)
     val week = state.semester?.weekOn(state.today)
     val items = remember(state.todayLessons, season, state.periods, now) { classify(state.todayLessons, season, state.periods, now) }
@@ -59,7 +61,10 @@ private fun classify(lessons: List<ScheduleLesson>, season: ScheduleSeason, fall
             Column(Modifier.statusBarsPadding().padding(top = 8.dp, bottom = 4.dp)) {
                 Text(state.today.format(DateTimeFormatter.ofPattern("EEEE", Locale.SIMPLIFIED_CHINESE)) + (week?.let { " · 第 $it 周" } ?: ""),
                     style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.primary)
-                Text(state.today.format(DateTimeFormatter.ofPattern("M月d日", Locale.SIMPLIFIED_CHINESE)), style = MaterialTheme.typography.headlineLarge)
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(state.today.format(DateTimeFormatter.ofPattern("M月d日", Locale.SIMPLIFIED_CHINESE)), style = MaterialTheme.typography.headlineLarge, modifier = Modifier.weight(1f))
+                    GlassIconButton(if (prefs.reminderEnabled) Icons.Default.NotificationsActive else Icons.Default.Tune, "今日设置", { settingsOpen = true }, size = 40.dp)
+                }
                 Spacer(Modifier.height(6.dp))
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     InfoChip("${season.label}作息", color = glass.textMuted, icon = Icons.Default.Schedule)

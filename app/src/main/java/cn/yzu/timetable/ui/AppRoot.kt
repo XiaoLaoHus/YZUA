@@ -57,6 +57,19 @@ private val pushSpring = spring<androidx.compose.ui.unit.IntOffset>(dampingRatio
     val navBottom = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
     val barSpace = 66.dp + 12.dp + navBottom
 
+    val context = androidx.compose.ui.platform.LocalContext.current
+    // 课表、学期或提醒设置变化后重新安排本地提醒（只读本机缓存，不联网）
+    LaunchedEffect(state.lessons, state.semester, state.periods, prefs.reminderEnabled, prefs.reminderLead, prefs.autoMute, prefs.seasonMode) {
+        kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) { runCatching { cn.yzu.timetable.reminder.ClassReminders.reschedule(context) } }
+    }
+    val notificationPermission = androidx.activity.compose.rememberLauncherForActivityResult(androidx.activity.result.contract.ActivityResultContracts.RequestPermission()) { }
+    LaunchedEffect(prefs.disclaimerAccepted) {
+        if (prefs.disclaimerAccepted && prefs.reminderEnabled && !prefs.notificationAsked && android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU &&
+            !androidx.core.app.NotificationManagerCompat.from(context).areNotificationsEnabled()) {
+            prefs.markNotificationAsked()
+            notificationPermission.launch(android.Manifest.permission.POST_NOTIFICATIONS)
+        }
+    }
     CompositionLocalProvider(LocalDisplayPreferences provides prefs, LocalBottomBarSpace provides barSpace) {
         Box(Modifier.fillMaxSize()) {
             // 内容层：录制为玻璃底栏的采样源（背景也在其中，保证模糊后完整覆盖）
