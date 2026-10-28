@@ -1,40 +1,40 @@
 # YZUA · 扬大课表
 
-一个面向扬州大学学生的 Android 课表管理 App，参考 HITA 的周课表交互与 Material 3 视觉风格。当前版本先完成登录、周课表、课程详情、AI 空白页和个人页，真实 URP 接入通过独立数据源适配。
+面向扬州大学学生的 Android 课表、成绩和考试查询工具。沿用 HITA 风格的 Kotlin + Jetpack Compose / Material 3 界面，AI 助手保留空白页。
 
-## 当前状态
+## 当前功能
 
-- 技术栈：Kotlin、Jetpack Compose、Material 3、Navigation Compose
-- 最低版本：Android 8.0（API 26）
-- 默认数据：演示数据（登录后可浏览完整周课表）
-- AI 问答：预留页面，尚未接入
+- Android 8.0（API 26）及以上。
+- 学校 SSO 网页登录：从 `/sigin` 进入扬大统一认证，回到教务 `/index` 后将 Cookie 交给 API 会话。App 不读取或代填统一认证密码。
+- 本学期课表：GET 查询，支持位图周次、单双周、课程详情。
+- 成绩查询：本学期与全部学期切换，动态发现查询地址；全部学期按页读取，区分等级成绩、未公布、未评估与查询关闭。
+- 考试安排：读取考试页和 FullCalendar 事件接口，查询当前月份前三个月到后四个月月初；查询错误和无考试分开显示。
+- 各查询独立报错、可刷新；刷新失败保留本次运行的数据。退出会清理 API 会话并取消旧请求。
 
-当前是可运行原型：登录使用演示数据源，尚未实现扬州大学 URP 的真实登录和课表抓取；界面也尚未完成与 HITA 的逐页对照验收。请勿输入真实教务密码。
+## 网络与验证边界
+
+手机需要连接校园网，或使用可访问教务系统的校园 VPN。电脑已经连接 VPN，不表示手机自动具有同样的网络。
+
+2026-10-28 已在电脑浏览器的有效 SSO 会话中核对课表、成绩与考试页面及其脚本；成绩页可显示数据，考试页显示当前无相关考试。非空考试记录仅用合成 FullCalendar 数据测试，尚无真实非空考试样例。Android WebView 的真实账号登录仍待手机或模拟器验证，不能用编译通过代替实测。
+
+API Cookie 保存在独立的内存 CookieJar，不写入代码、日志或持久缓存。系统 WebView 在认证过程中可能使用自己的磁盘 Cookie 存储，App 会在开始、完成及销毁登录页时清理；进程异常终止无法保证销毁回调执行。课表与成绩目前仅在本次运行中保留，离线持久缓存及与 HITA 的逐页视觉验收尚未完成。
 
 ## 仓库与持续集成
 
-- 本地项目目录：`AIWorkSpace/YZUA/`，该目录有独立的 `.git`。
-- GitHub 仓库根目录直接对应 `YZUA/` 内的项目文件，工作区的其他项目不在同步范围。
-- 提交和推送前先进入 `YZUA/`，用 `git rev-parse --show-toplevel` 确认仓库根目录。
-- GitHub Actions 自动运行单元测试、Debug APK 构建和 Android Lint，并保存构建报告；成功时发布 `yzua-debug-apk` 构建产物。
+- 本地 `AIWorkSpace/YZUA/` 是独立 Git 仓库，GitHub 根目录只对应此目录内容。
+- 提交前用 `git rev-parse --show-toplevel` 检查边界；不提交工作区其他项目、学校账号、Cookie 或真实个人数据。
+- GitHub Actions 运行单元测试、Debug APK 与 Android Lint；产物名称为 `yzua-debug-apk` 和 `yzua-build-reports`。
 
 ### 2026-10-28
 
-将 Android 项目隔离为独立仓库；修正 Java/Kotlin 编译目标不一致、协程测试调度和工作流失败状态传递。真实 URP 对接、持久化缓存和 UI 对照验收仍待完成。
+隔离 YZUA 仓库并修正 CI；将直接账号密码登录重构为学校 SSO WebView → 内存 API 会话；核对课表 GET、成绩动态 GET / 分页 POST 以及考试 FullCalendar 地址；补齐成绩、考试页面及会话切换、错误处理、分页等自动化测试。
 
-## 本地运行
+## 本地构建
 
-安装 Android SDK（API 35）和 JDK 17 后，使用仓库内的 Gradle Wrapper：
+安装 JDK 17 和 Android SDK API 35，设置 `JAVA_HOME`、`ANDROID_HOME` 后运行：
 
-```bash
-./gradlew testDebugUnitTest
-./gradlew assembleDebug lintDebug
+```powershell
+.\gradlew.bat testDebugUnitTest assembleDebug lintDebug
 ```
 
-## URP 接入
-
-真实扬大 URP 的 Base URL、登录字段与课表响应格式需要根据学校部署配置。适配边界见 [docs/urp-integration.md](docs/urp-integration.md)，数据源接口位于 `app/src/main/java/cn/yzu/timetable/data/urp/`。
-
-## URP 接入进度
-
-已加入扬州大学移动教务入口 http://ydjwxs.yzu.edu.cn/mobile/index 的 Cookie 会话数据源，课表请求采用 planCode 和 jaxStudentSchedule/callback，并支持 JSON/HTML 解析。若学校网络要求验证码或 WebVPN，应用会提示在校园网页完成认证。
+Linux / macOS 使用 `./gradlew`。接口契约与实测边界见 [URP 接入说明](docs/urp-integration.md)。

@@ -21,3 +21,26 @@ data class ScheduleLesson(
 ) {
     fun occursInWeek(week: Int): Boolean = week in weekNumbers
 }
+
+data class ScoreRecord(
+    val courseCode: String,
+    val courseSequence: String,
+    val courseName: String,
+    val credit: String,
+    val property: String,
+    val maxScore: String,
+    val minScore: String,
+    val averageScore: String,
+    val score: String,
+    val unpassedReason: String,
+    val englishCourseName: String,
+    val termLabel: String = "",
+)
+
+data class ExamSchedule(
+    val courseName: String,
+    val startTime: String,
+    val endTime: String,
+    val location: String,
+    val note: String,
+)

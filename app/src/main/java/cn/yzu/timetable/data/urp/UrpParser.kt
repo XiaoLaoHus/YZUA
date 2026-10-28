@@ -1,6 +1,8 @@
 package cn.yzu.timetable.data.urp
 
+import cn.yzu.timetable.data.model.ExamSchedule
 import cn.yzu.timetable.data.model.ScheduleLesson
+import cn.yzu.timetable.data.model.ScoreRecord
 import com.google.gson.JsonElement
 import com.google.gson.JsonObject
 import com.google.gson.JsonParser
@@ -10,6 +12,7 @@ import java.util.Locale
 class UrpParseException(message: String) : IllegalArgumentException(message)
 data class UrpPeriod(val number: Int, val startTime: String, val endTime: String)
 data class ParsedSchedule(val lessons: List<ScheduleLesson>, val periods: List<UrpPeriod> = emptyList())
+data class ScorePage(val records: List<ScoreRecord>, val totalCount: Int)
 
 object WeekPattern {
     fun parse(value: String): Set<Int> {
@@ -32,11 +35,90 @@ object WeekPattern {
 }
 
 object UrpParser {
+    fun parseAllTermScores(payload: String): ScorePage {
+        val root = try { JsonParser.parseString(payload).asJsonObject } catch (_: Exception) { throw UrpParseException("历年成绩格式错误") }
+        val list = root.get("list")?.takeIf(JsonElement::isJsonObject)?.asJsonObject ?: throw UrpParseException("历年成绩缺少分页信息")
+        val context = list.get("pageContext")?.takeIf(JsonElement::isJsonObject)?.asJsonObject
+        val count = text(context, "totalCount")?.toIntOrNull()?.takeIf { it >= 0 } ?: throw UrpParseException("历年成绩总数无效")
+        val records = list.get("records")
+        if (records == null || records.isJsonNull) {
+            if (count == 0) return ScorePage(emptyList(), 0)
+            throw UrpParseException("历年成绩缺少记录")
+        }
+        if (!records.isJsonArray) throw UrpParseException("历年成绩记录格式错误")
+        val mapped = records.asJsonArray.map { row ->
+            val o = row.takeIf(JsonElement::isJsonObject)?.asJsonObject ?: throw UrpParseException("历年成绩记录格式错误")
+            val normalized = JsonObject()
+            mapOf("KCH" to "courseNumber", "KXH" to "coureSequenceNumber", "KCM" to "courseName",
+                "YWKCM" to "englishCourseName", "XF" to "credit", "KCSXMC" to "coursePropertyName",
+                "KCCJ" to "courseScore", "LRZTDM" to "inputStatusCode", "CJLRFSDM" to "inputMethodCode",
+                "DJM" to "levelName", "WTGYYSM" to "unpassedReasonExplain").forEach { (from, to) -> o.get(from)?.let { normalized.add(to, it) } }
+            parseScores("[$normalized]").single().copy(termLabel = text(o, "ZXJXJHM").orEmpty())
+        }
+        return ScorePage(mapped, count)
+    }
     private val fallbackPeriods = listOf(UrpPeriod(1, "08:00", "08:45"), UrpPeriod(2, "08:55", "09:40"), UrpPeriod(3, "09:55", "10:40"), UrpPeriod(4, "10:50", "11:35"), UrpPeriod(5, "11:45", "12:30"), UrpPeriod(6, "14:30", "15:15"), UrpPeriod(7, "15:25", "16:10"), UrpPeriod(8, "16:20", "17:05"), UrpPeriod(9, "17:15", "18:00"), UrpPeriod(10, "18:10", "18:55"), UrpPeriod(11, "19:30", "20:15"), UrpPeriod(12, "20:25", "21:10"))
     fun parse(payload: String): ParsedSchedule = when {
         payload.trim().startsWith("{") -> parseJson(payload)
         payload.trim().startsWith("<") -> parseHtml(payload)
         else -> throw UrpParseException("教务系统返回了无法识别的内容")
+    }
+
+    fun parseScores(payload: String): List<ScoreRecord> {
+        val root = try { JsonParser.parseString(payload) } catch (_: Exception) { throw UrpParseException("成绩 JSON 格式错误") }
+        val envelope = root.asJsonArrayOrNull()?.firstOrNull()?.takeIf(JsonElement::isJsonObject)?.asJsonObject
+        if (text(envelope, "state") == "0") throw UrpParseException("该学期成绩查询已关闭，暂时不能查看成绩")
+        val list = when {
+            envelope?.get("list")?.isJsonArray == true -> envelope.getAsJsonArray("list")
+            root.isJsonArray -> root.asJsonArray
+            root.isJsonObject && root.asJsonObject.get("list")?.isJsonArray == true -> root.asJsonObject.getAsJsonArray("list")
+            else -> throw UrpParseException("成绩响应缺少列表")
+        }
+        return list.map { item ->
+            val o = item.takeIf(JsonElement::isJsonObject)?.asJsonObject ?: throw UrpParseException("成绩记录格式错误")
+            val id = o.get("id")?.takeIf(JsonElement::isJsonObject)?.asJsonObject
+            val published = text(o, "inputStatusCode")?.let { it == "05" } ?: true
+            val rawScore = text(o, "courseScore", "score").orEmpty()
+            val displayScore = when {
+                !published -> "未公布"
+                rawScore == "-999.999" -> "未评估"
+                text(o, "inputMethodCode") == "002" -> text(o, "levelName") ?: rawScore
+                else -> rawScore.ifBlank { text(o, "levelName").orEmpty() }
+            }
+            ScoreRecord(
+                courseCode = text(id, "courseNumber") ?: text(o, "courseNumber", "courseCode").orEmpty(),
+                courseSequence = text(o, "coureSequenceNumber", "courseSequenceNumber").orEmpty().takeUnless { it == "NONE" }.orEmpty(),
+                courseName = text(o, "courseName") ?: throw UrpParseException("成绩缺少课程名"),
+                credit = text(o, "credit", "credits").orEmpty(),
+                property = text(o, "coursePropertyName", "courseProperty").orEmpty(),
+                maxScore = if (published) text(o, "maxcj", "maxScore").orEmpty() else "",
+                minScore = if (published) text(o, "mincj", "minScore").orEmpty() else "",
+                averageScore = if (published) text(o, "avgcj", "averageScore").orEmpty() else "",
+                score = displayScore,
+                unpassedReason = text(o, "unpassedReasonExplain", "unpassedReason").orEmpty(),
+                englishCourseName = text(o, "englishCourseName", "englishName").orEmpty(),
+            )
+        }
+    }
+
+    fun parseExams(payload: String): List<ExamSchedule> {
+        val root = try { JsonParser.parseString(payload) } catch (_: Exception) { throw UrpParseException("考试安排 JSON 格式错误") }
+        val list = when {
+            root.isJsonArray -> root.asJsonArray
+            root.isJsonObject && root.asJsonObject.get("list")?.isJsonArray == true -> root.asJsonObject.getAsJsonArray("list")
+            root.isJsonObject && root.asJsonObject.get("events")?.isJsonArray == true -> root.asJsonObject.getAsJsonArray("events")
+            else -> throw UrpParseException("考试响应缺少事件列表")
+        }
+        return list.map { item ->
+            val o = item.takeIf(JsonElement::isJsonObject)?.asJsonObject ?: throw UrpParseException("考试事件格式错误")
+            ExamSchedule(
+                courseName = text(o, "courseName", "title", "name")?.let { Jsoup.parse(it).text() } ?: throw UrpParseException("考试事件缺少名称"),
+                startTime = text(o, "start", "startTime", "examTime") ?: throw UrpParseException("考试事件缺少时间"),
+                endTime = text(o, "end", "endTime").orEmpty(),
+                location = text(o, "location", "place", "classroom", "examPlace").orEmpty(),
+                note = text(o, "description", "note", "remark").orEmpty(),
+            )
+        }
     }
     private fun parseJson(payload: String): ParsedSchedule {
         val root = try { JsonParser.parseString(payload).asJsonObject } catch (_: Exception) { throw UrpParseException("课表 JSON 格式错误") }
@@ -70,5 +152,6 @@ object UrpParser {
     }
     private fun parseDay(value: String): Int = when (value.trim().lowercase(Locale.ROOT)) { "一", "周一", "星期一", "1" -> 1; "二", "周二", "星期二", "2" -> 2; "三", "周三", "星期三", "3" -> 3; "四", "周四", "星期四", "4" -> 4; "五", "周五", "星期五", "5" -> 5; "六", "周六", "星期六", "6" -> 6; "日", "周日", "星期日", "7" -> 7; else -> 0 }
     private fun clock(value: String?): String? = value?.takeIf { it.matches(Regex("\\d{4}")) }?.let { "${it.substring(0, 2)}:${it.substring(2)}" }
-    private fun text(obj: JsonObject, vararg names: String): String? = names.firstNotNullOfOrNull { name -> obj.get(name)?.takeUnless(JsonElement::isJsonNull)?.asString?.takeIf(String::isNotBlank) }
+    private fun text(obj: JsonObject?, vararg names: String): String? = obj?.let { names.firstNotNullOfOrNull { name -> it.get(name)?.takeIf(JsonElement::isJsonPrimitive)?.asString?.takeIf(String::isNotBlank) } }
+    private fun JsonElement.asJsonArrayOrNull() = if (isJsonArray) asJsonArray else null
 }

@@ -45,4 +45,44 @@ class UrpParserTest {
         val json = """{"xkxx":[{"a":{"courseName":"数学","timeAndPlaceList":[{"classDay":1,"classSessions":1,"continuingSession":2,"classWeek":"1111"},{"classDay":9,"classSessions":3,"continuingSession":2,"classWeek":"1111"}]}}]}"""
         assertThrows(UrpParseException::class.java) { UrpParser.parse(json) }
     }
+
+    @Test fun parsesYangzhouScoresResponse() {
+        val payload = """[{"state":"1","list":[{"id":{"courseNumber":"TEST001"},"coureSequenceNumber":"01","courseName":"测试课程","credit":"0.5","coursePropertyName":"必修","maxcj":"99","mincj":"65","avgcj":"80","courseScore":"87","inputStatusCode":"05","unpassedReasonExplain":"","englishCourseName":"Test Course"}]}]"""
+        val score = UrpParser.parseScores(payload).single()
+        assertEquals("TEST001", score.courseCode)
+        assertEquals("测试课程", score.courseName)
+        assertEquals("87", score.score)
+        assertEquals("0.5", score.credit)
+    }
+
+    @Test fun parsesExamCalendarEventsAndAllowsEmptyEvents() {
+        val payload = """[{"title":"高等数学（一）","start":"2026-12-20T08:00:00","end":"2026-12-20T10:00:00","location":"扬子津校区 A101","description":"闭卷"}]"""
+        val exam = UrpParser.parseExams(payload).single()
+        assertEquals("高等数学（一）", exam.courseName)
+        assertEquals("2026-12-20T08:00:00", exam.startTime)
+        assertEquals("扬子津校区 A101", exam.location)
+        assertTrue(UrpParser.parseExams("[]").isEmpty())
+    }
+
+    @Test fun closedScoreQueryIsNotEmptySuccess() {
+        assertThrows(UrpParseException::class.java) { UrpParser.parseScores("""[{"state":"0","list":[]}]""") }
+    }
+
+    @Test fun parsesAllTermScorePageUsingSchoolUppercaseFields() {
+        val result = UrpParser.parseAllTermScores("""{"list":{"pageContext":{"totalCount":2},"records":[{"KCH":"TEST001","KXH":"01","KCM":"测试课程","XF":2,"KCSXMC":"必修","KCCJ":85,"LRZTDM":"05","CJLRFSDM":"001","ZXJXJHM":"2026-2027学年秋"}]}}""")
+        assertEquals(2, result.totalCount)
+        assertEquals("85", result.records.single().score)
+        assertEquals("2026-2027学年秋", result.records.single().termLabel)
+    }
+
+    @Test fun preservesGradeLevelsAndUnpublishedScores() {
+        val scores = UrpParser.parseScores("""[{"state":"1","list":[{"courseName":"等级课","inputStatusCode":"05","inputMethodCode":"002","courseScore":"90","levelName":"优秀"},{"courseName":"未公布课","inputStatusCode":"01","courseScore":"80"},{"courseName":"未评估课","inputStatusCode":"05","courseScore":"-999.999"}]}]""")
+        assertEquals(listOf("优秀", "未公布", "未评估"), scores.map { it.score })
+    }
+
+    @Test fun unknownExamResponsesMustNotMasqueradeAsNoExams() {
+        listOf("null", "{}", "{\"error\":\"expired\"}", "[{\"unexpected\":1}]").forEach { payload ->
+            assertThrows(UrpParseException::class.java) { UrpParser.parseExams(payload) }
+        }
+    }
 }
