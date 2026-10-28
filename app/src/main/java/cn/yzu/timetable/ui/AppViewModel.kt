@@ -34,10 +34,11 @@ class AppViewModel(
 
     fun setAccount(value: String) { mutable.value = mutable.value.copy(account = value, error = null) }
     fun setPassword(value: String) { mutable.value = mutable.value.copy(password = value, error = null) }
-    fun login() { val s = mutable.value; if (s.account.isBlank() || s.password.isBlank()) { mutable.value = s.copy(error = "请输入学号和密码"); return }; viewModelScope.launch { mutable.value = s.copy(loading = true, error = null); runCatching { val session = source.login(s.account, s.password); val lessons = source.getSchedule(session, s.term); sessions.save(session); mutable.value = mutable.value.copy(screen = AppScreen.Home, session = session, lessons = lessons, loading = false, password = "") }.onFailure { mutable.value = mutable.value.copy(loading = false, error = it.message ?: "登录失败") } } }
-    fun refresh() { val s = mutable.value; val session = s.session ?: return; viewModelScope.launch { mutable.value = s.copy(loading = true); runCatching { source.getSchedule(session, s.term) }.onSuccess { mutable.value = mutable.value.copy(lessons = it, loading = false) }.onFailure { mutable.value = mutable.value.copy(loading = false, error = "刷新失败") } } }
+    fun login() { val s = mutable.value; if (s.account.isBlank() || s.password.isBlank()) { mutable.value = s.copy(error = "请输入学号和密码"); return }; viewModelScope.launch { mutable.value = s.copy(loading = true, error = null); try { val session = source.login(s.account, s.password); val lessons = source.getSchedule(session, s.term); sessions.save(session); mutable.value = mutable.value.copy(screen = AppScreen.Home, session = session, lessons = lessons, loading = false, password = "") } catch (error: Exception) { mutable.value = mutable.value.copy(loading = false, error = error.message ?: "登录失败") } } }
+    fun refresh() { val s = mutable.value; val session = s.session ?: return; viewModelScope.launch { mutable.value = s.copy(loading = true); try { val lessons = source.getSchedule(session, s.term); mutable.value = mutable.value.copy(lessons = lessons, loading = false) } catch (_: Exception) { mutable.value = mutable.value.copy(loading = false, error = "刷新失败") } } }
     fun shiftWeek(delta: Int) { mutable.value = mutable.value.copy(week = (mutable.value.week + delta).coerceIn(1, mutable.value.term.totalWeeks)) }
     fun resetWeek() { mutable.value = mutable.value.copy(week = 1) }
     fun selectLesson(lesson: ScheduleLesson?) { mutable.value = mutable.value.copy(selectedLesson = lesson) }
     fun logout() { sessions.clear(); mutable.value = AppUiState() }
 }
+
