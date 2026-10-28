@@ -26,7 +26,7 @@ import java.util.Locale
             Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer)) {
                 Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                     Icon(Icons.Default.School, null)
-                    Text("欢迎使用扬大课表", style = MaterialTheme.typography.titleLarge)
+                    Text("欢迎使用 YZUA", style = MaterialTheme.typography.titleLarge)
                     Text("先到“我的”完成学校统一认证。导入一次后，课表、成绩和考试安排保存在本机，下次打开即可查看。")
                     Button(onProfile) { Text("去我的完成登录") }
                     TextButton(onDismissGuide) { Text("稍后设置") }

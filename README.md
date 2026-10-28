@@ -1,6 +1,8 @@
-# YZUA · 扬大课表
+# YZUA · Yangzhou University Agent
 
 面向扬州大学学生的 Android 课表、成绩和考试查询工具。沿用 HITA 风格的 Kotlin + Jetpack Compose / Material 3 界面，AI 助手保留空白页。
+
+当前版本 **v0.5**（应用版本 `0.5.0`，versionCode `5`）。应用名统一为 **YZUA**，意为 **Yangzhou University Agent**。保留 `cn.yzu.timetable` 包名及数据目录，名称变更不清理本地课表。
 
 ## 当前功能
 
@@ -27,6 +29,8 @@ API Cookie 保存在独立的内存 CookieJar，不写入代码、日志或持�
 - GitHub Actions 运行单元测试、Debug APK 与 Android Lint；产物名称为 `yzua-debug-apk` 和 `yzua-build-reports`。
 
 ### 2026-10-28
+
+用户实测确认 SSO 登录修复通过；将桌面应用名、登录页、今日引导和“我的”默认名称统一为 YZUA，准备发布 v0.5。发布 APK 继续使用 Actions 的 Debug 构建，与 v0.1 一样；不是独立配置的生产签名包。
 
 隔离 YZUA 仓库并修正 CI；将直接账号密码登录重构为学校 SSO WebView → 内存 API 会话；核对课表 GET、成绩动态 GET / 分页 POST 以及考试 FullCalendar 地址；补齐成绩、考试页面及会话切换、错误处理、分页等自动化测试。
 

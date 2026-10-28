@@ -21,7 +21,7 @@ import cn.yzu.timetable.ui.AppViewModel
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(20.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
         Text("我的", style = MaterialTheme.typography.headlineMedium)
         Card { ListItem(leadingContent = { Icon(Icons.Default.Person, null) },
-            headlineContent = { Text(state.session?.displayName ?: "扬大课表") },
+            headlineContent = { Text(state.session?.displayName ?: "YZUA") },
             supportingContent = { Text(if (state.session != null) "本次登录有效 · 可在线刷新" else if (state.scheduleUpdated != null) "离线查看本地数据" else "登录一次，导入课表与查询结果") }) }
         if (state.loading) LinearProgressIndicator(Modifier.fillMaxWidth())
         if (state.session == null) Button(onLogin, modifier = Modifier.fillMaxWidth(), enabled = !state.loading) { Text("统一认证登录 / 刷新信息") }
