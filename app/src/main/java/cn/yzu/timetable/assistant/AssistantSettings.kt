@@ -11,7 +11,7 @@ import androidx.compose.runtime.setValue
  */
 class AssistantSettings private constructor(context: Context) {
     private val prefs = context.getSharedPreferences("yzua_ai_prefs", Context.MODE_PRIVATE)
-    var baseUrl by mutableStateOf(prefs.getString(KEY_URL, "").orEmpty())
+    var baseUrl by mutableStateOf(prefs.getString(KEY_URL, null) ?: DEFAULT_URL)
         private set
     var apiKey by mutableStateOf(prefs.getString(KEY_KEY, "").orEmpty())
         private set
@@ -26,6 +26,8 @@ class AssistantSettings private constructor(context: Context) {
     }
 
     companion object {
+        const val DEFAULT_URL = "https://api.deepseek.com"
+        const val DOCS_URL = "https://api-docs.deepseek.com/zh-cn/"
         private const val KEY_URL = "ai_base_url"
         private const val KEY_KEY = "ai_api_key"
         private const val KEY_MODEL = "ai_model"

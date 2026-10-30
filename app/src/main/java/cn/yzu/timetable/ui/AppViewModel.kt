@@ -83,7 +83,8 @@ class AppViewModel(
                 val session = login(); ensureActive()
                 if (version != generation) return@launch
                 if (replaceCache) {
-                    snapshot = AcademicSnapshot(onboarded = true)
+                    // 学期日期全校统一且已用户校准，换账号登录时保留，避免重复校准；其余查询结果仍隔离。
+                    snapshot = AcademicSnapshot(onboarded = true, semester = snapshot.semester)
                     mutable.value = restore(snapshot).copy(loading = true)
                 }
                 sessions.save(session)

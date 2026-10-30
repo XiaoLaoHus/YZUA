@@ -55,6 +55,9 @@ private fun classify(lessons: List<ScheduleLesson>, season: ScheduleSeason, fall
     val mergedLessons = state.lessons + prefs.customLessons
     val todayList = remember(mergedLessons, state.today, state.semester) { cn.yzu.timetable.data.AcademicCalendar.todayLessons(state.today, state.semester, mergedLessons) }
     val items = remember(todayList, season, state.periods, now) { classify(todayList, season, state.periods, now) }
+    val outOfRange = remember(state.semester, state.today) {
+        runCatching { state.semester?.let { state.today.isBefore(it.start()) || state.today.isAfter(it.end()) } }.getOrNull() == true
+    }
     val finished = items.count { it.phase == LessonPhase.Finished }
 
     LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(start = 18.dp, end = 18.dp, top = 12.dp, bottom = LocalBottomBarSpace.current + 20.dp),
@@ -90,6 +93,9 @@ private fun classify(lessons: List<ScheduleLesson>, season: ScheduleSeason, fall
                     TextButton(onDismissGuide) { Text("稍后设置") }
                 }
             }
+        }
+        if (outOfRange) item("calibrate") {
+            StatusBanner("当前日期不在已保存的学期范围内，请重新校准学期日期。", Icons.Default.EditCalendar, BannerTone.Warning, action = "校准", onAction = onProfile)
         }
         state.semesterReminder?.let { message -> item("reminder") {
             StatusBanner(message, Icons.Default.EventNote, BannerTone.Warning, action = "前往", onAction = onProfile)

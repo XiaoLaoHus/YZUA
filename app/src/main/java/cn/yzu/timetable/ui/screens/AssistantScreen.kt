@@ -49,7 +49,7 @@ import kotlinx.coroutines.launch
         step = "思考中…"
         scope.launch {
             val history = messages.filter { it.role != "system" }.toList()
-            val reply = AssistantEngine.chat(settings, history.dropLast(1), text, AssistantContext(state, classroom, season)) { step = it }
+            val reply = AssistantEngine.chat(settings, history.dropLast(1), text, AssistantContext(state, classroom, season, prefs)) { step = it }
             messages += ChatMessage("assistant", reply)
             busy = false
             step = null
@@ -58,7 +58,8 @@ import kotlinx.coroutines.launch
 
     Column(Modifier.fillMaxSize().statusBarsPadding()) {
         Row(Modifier.fillMaxWidth().padding(top = 8.dp, bottom = 6.dp, end = 16.dp), verticalAlignment = Alignment.CenterVertically) {
-            GlassIconButton(Icons.AutoMirrored.Filled.ArrowBack, "返回更多", onBack, size = 40.dp)
+            Spacer(Modifier.width(6.dp))
+            GlassIconButton(Icons.AutoMirrored.Filled.ArrowBack, "返回更多", onBack, size = 34.dp)
             Spacer(Modifier.width(12.dp))
             Column(Modifier.weight(1f)) {
                 Text("智能助手", style = MaterialTheme.typography.headlineMedium)
@@ -84,7 +85,7 @@ import kotlinx.coroutines.launch
                         }
                     } else {
                         GlassCard(Modifier.fillMaxWidth().widthIn(max = 340.dp), contentPadding = PaddingValues(14.dp)) {
-                            Text(m.content, style = MaterialTheme.typography.bodyLarge)
+                            MarkdownText(m.content, style = MaterialTheme.typography.bodyLarge)
                         }
                     }
                 }

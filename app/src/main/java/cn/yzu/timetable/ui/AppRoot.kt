@@ -18,6 +18,8 @@ import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.saveable.rememberSaveableStateHolder
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.unit.dp
@@ -152,6 +154,12 @@ private val pushSpring = spring<androidx.compose.ui.unit.IntOffset>(dampingRatio
                         }
                         Box(Modifier.weight(1f)) { LoginScreen(state, viewModel) }
                     }
+                }
+            }
+            // 开屏期间隐藏预渲染课表页， warmed 后切tab不卡顿
+            if (showSplash) {
+                Box(Modifier.matchParentSize().graphicsLayer { alpha = 0f }) {
+                    TimetableScreen(state, viewModel, onLessonClick = onLesson, onProfile = { tab = TAB_PROFILE }, onCalibrate = { calibrating = true })
                 }
             }
             AnimatedVisibility(showSplash, enter = fadeIn(), exit = fadeOut(tween(450))) { SplashScreen() }

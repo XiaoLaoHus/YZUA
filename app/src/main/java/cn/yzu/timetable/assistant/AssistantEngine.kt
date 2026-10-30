@@ -27,6 +27,7 @@ class AssistantContext(
     val state: AppUiState,
     val classroom: UrpClassroomDataSource?,
     val season: ScheduleSeason,
+    val prefs: cn.yzu.timetable.ui.components.DisplayPreferences,
 )
 
 object AssistantEngine {
@@ -47,6 +48,7 @@ object AssistantEngine {
             append("- my_exams：查询考试安排。输入：{}\n")
             append("- semester_info：学期首周、结束日与周次。输入：{}\n")
             append("- free_classroom：查询空闲教室。输入：{\"campus\":\"扬子津东校区\",\"building\":\"文津楼\",\"day\":0,\"start\":1,\"end\":2}，day 0=今天 1=明天 2=后天\n")
+            append("- add_custom_class：把用户要求的课程加入自定义课表（立即生效并保存）。输入：JSON，字段 name(必填)、weekday(1-7)、start、end(节次)、classroom、teacher、weeks(数组,可省略表示每周1-20)；用户说单周/双周时按 1-20 的奇偶填充。添加成功后告知用户可在课表页查看。\n")
             append("需要工具时，单独两行输出：\nAction: 工具名\nAction Input: 一行 JSON\n")
             append("收到 Observation 后继续推理；信息足够时输出：\nFinal Answer: 给用户的中文回答\n")
             append("语气简洁友好，像同学间的交流。")
@@ -83,6 +85,20 @@ object AssistantEngine {
                 if (list.isEmpty()) "没有可显示的成绩记录" else list.take(15).joinToString("\n") { "${it.courseName}：${it.score.ifBlank { "未公布" }}（学分 ${it.credit}）" }
             }
             "my_exams" -> if (ctx.state.exams.isEmpty()) "近期没有考试安排" else ctx.state.exams.joinToString("\n") { "${it.courseName} ${it.startTime.replace('T', ' ')} @${it.location}" }
+            "add_custom_class" -> {
+                val name = input.get("name")?.asString?.trim().orEmpty()
+                if (name.isEmpty()) return "缺少课程名称"
+                val weekList = input.getAsJsonArray("weeks")?.map { it.asInt }?.filter { it in 1..30 }
+                val parity = input.get("parity")?.asString
+                val weeks = weekList ?: when (parity) { "单周" -> (1..20 step 2).toList(); "双周" -> (2..20 step 2).toList(); else -> (1..20).toList() }
+                ctx.prefs.addCustomLesson(cn.yzu.timetable.ui.components.CustomLessonDraft(
+                    name, input.get("teacher")?.asString.orEmpty(), input.get("classroom")?.asString.orEmpty(),
+                    input.get("weekday")?.asInt?.coerceIn(1, 7) ?: 1,
+                    input.get("start")?.asInt?.coerceIn(1, 12) ?: 1,
+                    input.get("end")?.asInt?.coerceIn(1, 12) ?: 2,
+                    weeks.ifEmpty { (1..20).toList() }))
+                "已添加自定义课程：" + name + "（周" + (input.get("weekday")?.asInt ?: 1) + " 第" + (input.get("start")?.asInt ?: 1) + "-" + (input.get("end")?.asInt ?: 2) + "节）"
+            }
             "semester_info" -> ctx.state.semester?.let { "首周周一 ${it.firstMonday}，结束 ${it.lastDay}，共 ${it.totalWeeks()} 周" } ?: "学期日期未校准"
             "free_classroom" -> {
                 val src = ctx.classroom ?: return "当前没有教务会话，无法查询空教室"
@@ -124,6 +140,35 @@ object AssistantEngine {
         return "我尝试了多次仍没有拿到足够信息，换个问法试试？"
     }
 
+    /** OpenAI 兼容地址候选：兼容 base 带或不带 /v1 的写法。 */
+    private fun chatUrls(base: String): List<String> {
+        val b = base.trimEnd('/')
+        return listOf(b + "/chat/completions", b + "/v1/chat/completions").distinct()
+    }
+    private fun modelUrls(base: String): List<String> {
+        val b = base.trimEnd('/')
+        return listOf(b + "/models", b + "/v1/models").distinct()
+    }
+
+    /** 拉取可用模型名列表；失败返回 null。 */
+    suspend fun fetchModels(baseUrl: String, apiKey: String): List<String>? = withContext(Dispatchers.IO) {
+        var result: List<String>? = null
+        for (url in modelUrls(baseUrl)) {
+            if (result != null) break
+            try {
+                val request = Request.Builder().url(url).header("Authorization", "Bearer " + apiKey).get().build()
+                client.newCall(request).execute().use { r ->
+                    if (r.isSuccessful) {
+                        val body = r.body?.string()
+                        val arr = body?.let { runCatching { JsonParser.parseString(it).asJsonObject.getAsJsonArray("data") }.getOrNull() }
+                        if (arr != null) result = arr.mapNotNull { it.asJsonObject.get("id")?.asString }
+                    }
+                }
+            } catch (_: Exception) { }
+        }
+        result
+    }
+
     private suspend fun callLlm(settings: AssistantSettings, messages: List<ChatMessage>): String? = withContext(Dispatchers.IO) {
         try {
             val payload = JsonObject().apply {
@@ -131,18 +176,28 @@ object AssistantEngine {
                 addProperty("temperature", 0.3)
                 add("messages", Gson().toJsonTree(messages.map { mapOf("role" to it.role, "content" to it.content) }))
             }
-            val base = settings.baseUrl.trimEnd('/')
-            val url = if (base.endsWith("/chat/completions")) base else "$base/chat/completions"
-            val request = Request.Builder().url(url)
-                .header("Authorization", "Bearer " + settings.apiKey)
-                .post(payload.toString().toRequestBody("application/json; charset=utf-8".toMediaType())).build()
-            client.newCall(request).execute().use { r ->
-                if (!r.isSuccessful) return@withContext null
-                val body = r.body?.string() ?: return@withContext null
-                JsonParser.parseString(body).asJsonObject
-                    .getAsJsonArray("choices")?.get(0)?.asJsonObject
-                    ?.getAsJsonObject("message")?.get("content")?.asString
+            val media = "application/json; charset=utf-8".toMediaType()
+            var content: String? = null
+            for (url in chatUrls(settings.baseUrl)) {
+                if (content != null) break
+                try {
+                    val request = Request.Builder().url(url)
+                        .header("Authorization", "Bearer " + settings.apiKey)
+                        .post(payload.toString().toRequestBody(media)).build()
+                    client.newCall(request).execute().use { r ->
+                        if (r.isSuccessful) {
+                            val body = r.body?.string()
+                            content = body?.let {
+                                runCatching {
+                                    JsonParser.parseString(it).asJsonObject.getAsJsonArray("choices")?.get(0)?.asJsonObject
+                                        ?.getAsJsonObject("message")?.get("content")?.asString
+                                }.getOrNull()
+                            }
+                        }
+                    }
+                } catch (_: Exception) { }
             }
+            content
         } catch (_: Exception) { null }
     }
 }
