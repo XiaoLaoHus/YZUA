@@ -117,8 +117,13 @@ private val AppTypography = Typography(
 val TabularNumbers = TextStyle(fontFeatureSettings = "tnum")
 
 @Composable fun YangzhouTheme(content: @Composable () -> Unit) {
-    val dark = isSystemInDarkTheme()
     val view = LocalView.current
+    val prefs = cn.yzu.timetable.ui.components.displayPreferencesFor(view.context)
+    val dark = when (prefs.themeMode) {
+        cn.yzu.timetable.ui.components.ThemeMode.Light -> false
+        cn.yzu.timetable.ui.components.ThemeMode.Dark -> true
+        cn.yzu.timetable.ui.components.ThemeMode.System -> isSystemInDarkTheme()
+    }
     if (!view.isInEditMode) SideEffect {
         val window = (view.context as? Activity)?.window ?: return@SideEffect
         // 仅影响 MainActivity 窗口外观：内容延伸到系统栏下方，供浮空玻璃底栏使用。

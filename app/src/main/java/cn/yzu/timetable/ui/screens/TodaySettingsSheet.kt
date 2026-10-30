@@ -26,6 +26,7 @@ import androidx.core.app.NotificationManagerCompat
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import cn.yzu.timetable.reminder.ClassMute
+import cn.yzu.timetable.reminder.ClassReminders
 import cn.yzu.timetable.ui.components.*
 import cn.yzu.timetable.ui.theme.LocalGlass
 
@@ -68,6 +69,33 @@ private fun openSafely(context: Context, intent: Intent) { runCatching { context
                 if (!notificationsOn) StatusBanner("通知权限未开启，提醒无法显示", Icons.Default.NotificationsOff, BannerTone.Warning, action = "去开启", onAction = ::requestNotifications)
                 if (!exactAlarms) StatusBanner("系统限制了精确闹钟，提醒可能晚几分钟", Icons.Default.Schedule, BannerTone.Info, action = "去设置",
                     onAction = { if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) openSafely(context, Intent(Settings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM, android.net.Uri.parse("package:${context.packageName}"))) })
+                val upcoming = remember(tick, prefs.reminderLead, prefs.reminderEnabled, prefs.seasonMode) { cn.yzu.timetable.reminder.ClassReminders.nextEvents(context) }
+                GlassCard(strong = true, contentPadding = PaddingValues(16.dp)) {
+                    Text("提醒队列", style = MaterialTheme.typography.titleSmall, color = glass.textMuted)
+                    Spacer(Modifier.height(6.dp))
+                    if (upcoming.isEmpty()) Text("近期没有可提醒的课程：本学期课表未导入、今日无课，或本周课程已全部结束。", style = MaterialTheme.typography.bodySmall, color = glass.textFaint)
+                    else upcoming.forEach { e ->
+                        Row(Modifier.padding(vertical = 3.dp), verticalAlignment = Alignment.CenterVertically) {
+                            Icon(Icons.Default.Schedule, null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(15.dp))
+                            Spacer(Modifier.width(8.dp))
+                            Text("${e.at.monthValue}/${e.at.dayOfMonth} ${ClassReminders.formatTime(e.at.toLocalTime())} · ${e.lesson.courseName}",
+                                style = MaterialTheme.typography.bodySmall.merge(cn.yzu.timetable.ui.theme.TabularNumbers))
+                        }
+                    }
+                    Spacer(Modifier.height(10.dp))
+                    GlassCapsuleButton("发送测试通知", {
+                        if (!notificationsOn) requestNotifications()
+                        else {
+                            val lesson = upcoming.firstOrNull()?.lesson ?: cn.yzu.timetable.data.model.ScheduleLesson("test", "", "测试课程", "", "测试地点", 1, 1, 1, 1..1, 0, setOf(1))
+                            val at = java.time.LocalDateTime.now()
+                            cn.yzu.timetable.reminder.ClassNotifier.notify(context,
+                                cn.yzu.timetable.reminder.ClassReminders.Event(at, cn.yzu.timetable.reminder.ClassReminders.Kind.Remind, lesson,
+                                    at.plusMinutes(prefs.reminderLead.toLong()), at.plusMinutes(prefs.reminderLead.toLong() + 45)), at)
+                            android.widget.Toast.makeText(context, "测试通知已发送", android.widget.Toast.LENGTH_SHORT).show()
+                            tick++
+                        }
+                    }, Modifier.fillMaxWidth(), icon = Icons.Default.NotificationsActive)
+                }
             }
             GlassCard(strong = true, contentPadding = PaddingValues(horizontal = 16.dp, vertical = 6.dp)) {
                 SwitchRow(Icons.Default.VolumeOff, "上课自动静音", "上课时静音，下课自动恢复铃声", prefs.autoMute, prefs::updateAutoMute)
@@ -80,17 +108,5 @@ private fun openSafely(context: Context, intent: Intent) { runCatching { context
             }
             Text("提醒和静音按本机保存的课表与扬大作息计算，不联网；更新课表或校准学期后自动重新安排。", style = MaterialTheme.typography.bodySmall, color = glass.textFaint)
         }
-    }
-}
-
-@Composable private fun SwitchRow(icon: ImageVector, title: String, subtitle: String, checked: Boolean, onChange: (Boolean) -> Unit) {
-    Row(Modifier.fillMaxWidth().padding(vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
-        Icon(icon, null, tint = MaterialTheme.colorScheme.primary)
-        Spacer(Modifier.width(14.dp))
-        Column(Modifier.weight(1f)) {
-            Text(title, style = MaterialTheme.typography.titleMedium)
-            Text(subtitle, style = MaterialTheme.typography.bodySmall, color = LocalGlass.current.textMuted)
-        }
-        Switch(checked, onChange)
     }
 }

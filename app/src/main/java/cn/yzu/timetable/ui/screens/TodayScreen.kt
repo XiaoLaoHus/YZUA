@@ -52,7 +52,9 @@ private fun classify(lessons: List<ScheduleLesson>, season: ScheduleSeason, fall
     if (settingsOpen) TodaySettingsSheet { settingsOpen = false }
     val season = YzuTimetable.season(state.today, prefs.seasonMode)
     val week = state.semester?.weekOn(state.today)
-    val items = remember(state.todayLessons, season, state.periods, now) { classify(state.todayLessons, season, state.periods, now) }
+    val mergedLessons = state.lessons + prefs.customLessons
+    val todayList = remember(mergedLessons, state.today, state.semester) { cn.yzu.timetable.data.AcademicCalendar.todayLessons(state.today, state.semester, mergedLessons) }
+    val items = remember(todayList, season, state.periods, now) { classify(todayList, season, state.periods, now) }
     val finished = items.count { it.phase == LessonPhase.Finished }
 
     LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(start = 18.dp, end = 18.dp, top = 12.dp, bottom = LocalBottomBarSpace.current + 20.dp),
@@ -184,7 +186,7 @@ private fun minutesText(minutes: Long): String = when {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Icon(Icons.Default.Place, null, tint = glass.textMuted, modifier = Modifier.size(14.dp))
                     Spacer(Modifier.width(3.dp))
-                    Text(item.lesson.classroom.ifBlank { "未提供地点" }, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Medium, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    Text(item.lesson.classroom.ifBlank { "未提供地点" }, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Medium, maxLines = 2, overflow = TextOverflow.Ellipsis)
                 }
                 Text(listOf("第 ${item.lesson.startPeriod}–${item.lesson.endPeriod} 节", item.lesson.teacher).filter(String::isNotBlank).joinToString(" · "),
                     style = MaterialTheme.typography.labelSmall, color = glass.textFaint, maxLines = 1, overflow = TextOverflow.Ellipsis)

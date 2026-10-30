@@ -10,7 +10,7 @@ import android.media.AudioManager
  */
 internal object ClassMute {
     private const val KEY_PREVIOUS = "mute_previous_mode"
-    private const val KEY_APPLIED = "mute_applied_mode"
+    internal const val KEY_APPLIED = "mute_applied_mode"
 
     fun hasPolicyAccess(context: Context): Boolean =
         context.getSystemService(NotificationManager::class.java)?.isNotificationPolicyAccessGranted == true

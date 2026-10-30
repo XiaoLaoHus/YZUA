@@ -10,7 +10,7 @@ class ClassReminderReceiver : BroadcastReceiver() {
         val pending = goAsync()
         Thread {
             try {
-                if (intent.action == ClassReminders.ACTION_FIRE) ClassReminders.fire(context) else ClassReminders.reschedule(context)
+                when (intent.action) { ClassReminders.ACTION_FIRE -> ClassReminders.fire(context); else -> ClassReminders.reschedule(context) }
             } finally { pending.finish() }
         }.start()
     }

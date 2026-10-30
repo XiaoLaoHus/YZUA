@@ -15,6 +15,14 @@ enum class ScheduleSeason(val label: String) { SpringSummer("春夏季"), Autumn
 
 enum class SeasonMode(val label: String) { Auto("自动"), SpringSummer("春夏季"), AutumnWinter("秋冬季") }
 
+enum class ThemeMode(val label: String) { System("跟随系统"), Light("日间模式"), Dark("夜间模式") }
+
+/** 自定义课程草稿：只保存在界面偏好中，与教务数据分开。 */
+data class CustomLessonDraft(
+    val name: String, val teacher: String, val classroom: String,
+    val dayOfWeek: Int, val startPeriod: Int, val endPeriod: Int, val parity: Int,
+)
+
 data class PeriodSlot(val number: Int, val start: LocalTime, val end: LocalTime) {
     val startText: String get() = start.format(HHMM)
     val endText: String get() = end.format(HHMM)
@@ -93,6 +101,7 @@ object YzuTimetable {
 @Stable
 class DisplayPreferences internal constructor(private val context: Context) {
     private val prefs = context.getSharedPreferences(ClassReminders.PREFS, Context.MODE_PRIVATE)
+    private val gson = com.google.gson.Gson()
     var hideWeekend by mutableStateOf(prefs.getBoolean(KEY_WEEKEND, false))
         private set
     var seasonMode by mutableStateOf(runCatching { SeasonMode.valueOf(prefs.getString(KEY_SEASON, null) ?: "Auto") }.getOrDefault(SeasonMode.Auto))
@@ -116,17 +125,58 @@ class DisplayPreferences internal constructor(private val context: Context) {
         private set
     fun acceptDisclaimer() { disclaimerAccepted = true; prefs.edit().putBoolean(KEY_DISCLAIMER, true).apply() }
 
+    var themeMode by mutableStateOf(runCatching { ThemeMode.valueOf(prefs.getString(KEY_THEME, null) ?: "System") }.getOrDefault(ThemeMode.System))
+        private set
+    var updateCheckEnabled by mutableStateOf(prefs.getBoolean(KEY_UPDATE_CHECK, true))
+        private set
+    var customLessons by mutableStateOf(loadCustom())
+        private set
+
+    fun updateThemeMode(value: ThemeMode) { themeMode = value; prefs.edit().putString(KEY_THEME, value.name).apply() }
+    fun updateUpdateCheck(value: Boolean) { updateCheckEnabled = value; prefs.edit().putBoolean(KEY_UPDATE_CHECK, value).apply() }
+
+    fun addCustomLesson(draft: CustomLessonDraft): String {
+        val id = "custom-" + java.util.UUID.randomUUID().toString().take(8)
+        customLessons = customLessons + toLesson(id, draft)
+        saveCustom()
+        return id
+    }
+    fun removeCustomLesson(id: String) { customLessons = customLessons.filterNot { it.id == id }; saveCustom() }
+
+    private fun toLesson(id: String, d: CustomLessonDraft): ScheduleLesson {
+        val weeks = when (d.parity) { 1 -> (1..30 step 2).toSet(); 2 -> (2..30 step 2).toSet(); else -> (1..30).toSet() }
+        return ScheduleLesson(id, "", d.name, d.teacher, d.classroom, d.dayOfWeek, d.startPeriod, d.endPeriod, 1..30,
+            (id.hashCode() and Int.MAX_VALUE) % 10, weeks)
+    }
+    private fun loadCustom(): List<ScheduleLesson> = runCatching {
+        val json = prefs.getString(KEY_CUSTOM, null) ?: return@runCatching emptyList<ScheduleLesson>()
+        gson.fromJson(json, Array<CustomLessonDraft>::class.java).toList().map { d -> toLesson("custom-" + d.name.hashCode() + "-" + d.dayOfWeek + d.startPeriod, d) }
+    }.getOrDefault(emptyList())
+    private fun saveCustom() {
+        val drafts = customLessons.filter { it.id.startsWith("custom-") }.map {
+            CustomLessonDraft(it.courseName, it.teacher, it.classroom, it.dayOfWeek, it.startPeriod, it.endPeriod,
+                when { it.weekNumbers.all { w -> w % 2 == 1 } -> 1; it.weekNumbers.all { w -> w % 2 == 0 } -> 2; else -> 0 })
+        }
+        prefs.edit().putString(KEY_CUSTOM, gson.toJson(drafts)).apply()
+    }
+
     fun updateHideWeekend(value: Boolean) { hideWeekend = value; prefs.edit().putBoolean(KEY_WEEKEND, value).apply() }
     fun updateSeasonMode(value: SeasonMode) { seasonMode = value; prefs.edit().putString(KEY_SEASON, value.name).apply() }
 
-    private companion object { const val KEY_WEEKEND = "hide_weekend"; const val KEY_SEASON = ClassReminders.KEY_SEASON; const val KEY_NOTIFY_ASKED = "notification_permission_asked"; const val KEY_DISCLAIMER = "disclaimer_v1_accepted" }
+    companion object {
+        internal val instances = java.util.concurrent.ConcurrentHashMap<Context, DisplayPreferences>()
+        const val KEY_WEEKEND = "hide_weekend"; const val KEY_SEASON = ClassReminders.KEY_SEASON; const val KEY_NOTIFY_ASKED = "notification_permission_asked"; const val KEY_DISCLAIMER = "disclaimer_v1_accepted"; const val KEY_THEME = "theme_mode"; const val KEY_UPDATE_CHECK = "update_check_enabled"; const val KEY_CUSTOM = "custom_lessons_v1" }
 }
 
 val LocalDisplayPreferences = staticCompositionLocalOf<DisplayPreferences> { error("DisplayPreferences not provided") }
 
+/** 同一进程内共享同一实例，主题等设置在任意位置修改后全局立即生效。 */
+fun displayPreferencesFor(context: Context): DisplayPreferences =
+    DisplayPreferences.instances.getOrPut(context.applicationContext) { DisplayPreferences(context) }
+
 @Composable fun rememberDisplayPreferences(): DisplayPreferences {
     val context = LocalContext.current.applicationContext
-    return remember(context) { DisplayPreferences(context) }
+    return remember(context) { displayPreferencesFor(context) }
 }
 
 /** 每 20 秒刷新的本机时钟，用于今日课程状态和课表“当前时间”线。 */

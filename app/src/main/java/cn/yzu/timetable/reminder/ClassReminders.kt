@@ -29,6 +29,7 @@ object ClassReminders {
     const val KEY_SEASON = "season_mode"
     internal const val KEY_LAST_FIRED = "reminder_last_fired"
     internal const val ACTION_FIRE = "cn.yzu.timetable.reminder.FIRE"
+    internal const val ACTION_RESCHEDULE = "cn.yzu.timetable.reminder.RESCHEDULE"
     const val DEFAULT_LEAD = 15
 
     enum class Kind { Remind, Mute, Unmute }
@@ -63,8 +64,16 @@ object ClassReminders {
     internal fun readSnapshot(context: Context): AcademicSnapshot? =
         runCatching { AcademicCache(File(context.noBackupFilesDir, "academic-v1.json")).read().snapshot }.getOrNull()
 
-    private fun pending(context: Context) = PendingIntent.getBroadcast(context, 0,
-        Intent(context, ClassReminderReceiver::class.java).setAction(ACTION_FIRE), PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT)
+    private fun pending(context: Context, action: String = ACTION_FIRE, code: Int = 0) = PendingIntent.getBroadcast(context, code,
+        Intent(context, ClassReminderReceiver::class.java).setAction(action), PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT)
+
+    /** 供设置页展示：接下来最多三条待触发事件。 */
+    fun nextEvents(context: Context, limit: Int = 3): List<Event> {
+        val app = context.applicationContext
+        val snapshot = readSnapshot(app) ?: return emptyList()
+        val now = LocalDateTime.now()
+        return events(snapshot, now, 8, settings(app)).filter { it.at.isAfter(now) }.take(limit)
+    }
 
     /** 重新排下一次事件；关闭全部功能时取消闹钟，并恢复由本应用开启的静音。 */
     fun reschedule(context: Context) {
@@ -85,6 +94,23 @@ object ClassReminders {
         } catch (_: SecurityException) {
             alarm.setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, millis, intent)
         }
+        android.util.Log.i(TAG, "scheduled ${next.kind} at ${next.at} for ${next.lesson.courseName}")
+        // 自愈闹钟：每天清晨不精确触发一次，即使精确链断裂也能恢复。
+        val morning = now.toLocalDate().plusDays(1).atTime(5, 30)
+        alarm.setWindow(AlarmManager.RTC_WAKEUP, morning.atZone(ZoneId.systemDefault()).toInstant().toEpochMilli(), 30 * 60_000L, pending(app, ACTION_RESCHEDULE, 1))
+        syncCurrentClassState(app, s, snapshot, now)
+    }
+
+    /** 打开 App 或重排时，若正处于上课区间则补齐静音/恢复状态。 */
+    private fun syncCurrentClassState(app: Context, s: Settings, snapshot: AcademicSnapshot, now: LocalDateTime) {
+        if (!s.mute) return
+        val ongoing = events(snapshot, now.toLocalDate().atStartOfDay(), 0, s)
+            .firstOrNull { it.kind == Kind.Mute && !now.isBefore(it.start) && now.isBefore(it.end) }
+        val prefs = app.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+        when {
+            ongoing != null && !prefs.contains(ClassMute.KEY_APPLIED) -> ClassMute.mute(app)
+            ongoing == null && prefs.contains(ClassMute.KEY_APPLIED) -> ClassMute.restore(app)
+        }
     }
 
     /** 闹钟触发：处理上次处理之后到现在的所有到期事件（最多回看 10 分钟），再排下一次。 */
@@ -100,6 +126,7 @@ object ClassReminders {
         val last = if (lastMillis == 0L) floor else maxOf(floor, LocalDateTime.ofInstant(java.time.Instant.ofEpochMilli(lastMillis), zone))
         if (snapshot != null) {
             val due = events(snapshot, floor.toLocalDate().atStartOfDay(), 1, s).filter { it.at.isAfter(last) && !it.at.isAfter(now.plusSeconds(30)) }
+            android.util.Log.i(TAG, "fire: ${due.size} due event(s) at $now")
             due.forEach { e ->
                 when (e.kind) {
                     Kind.Remind -> ClassNotifier.notify(app, e, now)
@@ -111,6 +138,8 @@ object ClassReminders {
         }
         reschedule(app)
     }
+
+    private const val TAG = "YZUA-Reminder"
 
     fun formatTime(t: LocalTime): String = "%02d:%02d".format(t.hour, t.minute)
 }

@@ -56,7 +56,8 @@ private val MD = DateTimeFormatter.ofPattern("M/d")
     val start = weekStart(week)
     val refDate = start?.let { s -> if (!state.today.isBefore(s) && state.today.isBefore(s.plusDays(7))) state.today else s } ?: state.today
     val season = YzuTimetable.season(refDate, prefs.seasonMode)
-    val weekendLessons = state.lessons.count { it.dayOfWeek >= 6 && it.occursInWeek(week) }
+    val lessons = state.lessons + prefs.customLessons
+    val weekendLessons = lessons.count { it.dayOfWeek >= 6 && it.occursInWeek(week) }
     val days = if (prefs.hideWeekend) (1..5).toList() else (1..7).toList()
 
     Column(Modifier.fillMaxSize().statusBarsPadding()) {
@@ -106,7 +107,7 @@ private val MD = DateTimeFormatter.ofPattern("M/d")
             GlassCard(Modifier.fillMaxSize(), shape = RoundedCornerShape(topStart = 26.dp, topEnd = 26.dp), contentPadding = PaddingValues(horizontal = 4.dp)) {
                 TimetableDayHeader(pageStart, state.today, days)
                 Column(Modifier.fillMaxWidth().verticalScroll(rememberScrollState())) {
-                    TimetableGrid(w, state.lessons, state.periods, pageStart, state.today, now, days, YzuTimetable.season(pageRef, prefs.seasonMode), onLessonClick)
+                    TimetableGrid(w, lessons, state.periods, pageStart, state.today, now, days, YzuTimetable.season(pageRef, prefs.seasonMode), onLessonClick)
                     state.scheduleUpdated?.let {
                         Text("本地课表 · 更新于 $it", style = MaterialTheme.typography.labelSmall, color = LocalGlass.current.textFaint,
                             modifier = Modifier.align(Alignment.CenterHorizontally).padding(top = 12.dp))

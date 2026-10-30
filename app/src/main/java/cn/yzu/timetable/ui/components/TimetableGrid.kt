@@ -211,8 +211,8 @@ private fun nowOffset(now: LocalTime, slots: List<PeriodSlot>, m: GridMetrics): 
                 maxLines = if (height > 120.dp) 4 else 3, overflow = TextOverflow.Ellipsis)
             if (lesson.classroom.isNotBlank()) {
                 Spacer(Modifier.height(3.dp))
-                Text("@" + lesson.classroom, fontSize = 10.sp, lineHeight = 12.sp, fontWeight = FontWeight.Medium,
-                    color = colors.content.copy(alpha = 0.86f), maxLines = 3, overflow = TextOverflow.Ellipsis)
+                Text("@" + lesson.classroom, fontSize = 9.5.sp, lineHeight = 11.sp, fontWeight = FontWeight.Medium,
+                    color = colors.content.copy(alpha = 0.86f), maxLines = 4, overflow = TextOverflow.Ellipsis)
             }
             if (lesson.teacher.isNotBlank() && height > 110.dp) {
                 Spacer(Modifier.weight(1f))

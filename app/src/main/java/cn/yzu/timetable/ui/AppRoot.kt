@@ -62,6 +62,33 @@ private val pushSpring = spring<androidx.compose.ui.unit.IntOffset>(dampingRatio
     LaunchedEffect(state.lessons, state.semester, state.periods, prefs.reminderEnabled, prefs.reminderLead, prefs.autoMute, prefs.seasonMode) {
         kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) { runCatching { cn.yzu.timetable.reminder.ClassReminders.reschedule(context) } }
     }
+    // 开屏：仅冷启动显示约 2 秒
+    var showSplash by remember { mutableStateOf(!cn.yzu.timetable.ui.screens.ColdStartGate.splashShown) }
+    LaunchedEffect(showSplash) {
+        if (showSplash) {
+            kotlinx.coroutines.delay(2000)
+            cn.yzu.timetable.ui.screens.ColdStartGate.splashShown = true
+            showSplash = false
+        }
+    }
+    // 每次冷启动自动检查更新（可在“更多”中关闭）
+    LaunchedEffect(Unit) {
+        if (prefs.updateCheckEnabled && !UpdateCenter.checkedThisProcess) {
+            UpdateCenter.checkedThisProcess = true
+            val outcome = UpdateCenter.run()
+            if (outcome is UpdateChecker.Result.Failed) android.widget.Toast.makeText(context, UpdateChecker.failureText(context, outcome), android.widget.Toast.LENGTH_SHORT).show()
+        }
+    }
+    val updateResult = UpdateCenter.result.value
+    if (updateResult is UpdateChecker.Result.UpdateAvailable && !UpdateCenter.dismissed.value) {
+        val uriHandler = androidx.compose.ui.platform.LocalUriHandler.current
+        androidx.compose.material3.AlertDialog(onDismissRequest = { UpdateCenter.dismissed.value = true },
+            icon = { androidx.compose.material3.Icon(androidx.compose.material.icons.Icons.Default.SystemUpdate, null, tint = MaterialTheme.colorScheme.primary) },
+            title = { Text("发现新版本 v${updateResult.version}") },
+            text = { Text("本机版本 v${UpdateChecker.currentVersion()}。是否前往 GitHub Releases 下载更新？") },
+            confirmButton = { TextButton({ UpdateCenter.dismissed.value = true; runCatching { uriHandler.openUri(updateResult.url) } }) { Text("去更新") } },
+            dismissButton = { TextButton({ UpdateCenter.dismissed.value = true }) { Text("暂不") } })
+    }
     val notificationPermission = androidx.activity.compose.rememberLauncherForActivityResult(androidx.activity.result.contract.ActivityResultContracts.RequestPermission()) { }
     LaunchedEffect(prefs.disclaimerAccepted) {
         if (prefs.disclaimerAccepted && prefs.reminderEnabled && !prefs.notificationAsked && android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU &&
@@ -125,6 +152,7 @@ private val pushSpring = spring<androidx.compose.ui.unit.IntOffset>(dampingRatio
                     }
                 }
             }
+            AnimatedVisibility(showSplash, enter = fadeIn(), exit = fadeOut(tween(450))) { SplashScreen() }
             AnimatedVisibility(!prefs.disclaimerAccepted, enter = fadeIn(), exit = fadeOut() + scaleOut(targetScale = 1.04f)) {
                 DisclaimerScreen(onAccept = prefs::acceptDisclaimer)
             }
