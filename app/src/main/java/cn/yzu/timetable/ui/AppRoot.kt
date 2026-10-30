@@ -49,6 +49,8 @@ private val pushSpring = spring<androidx.compose.ui.unit.IntOffset>(dampingRatio
     var moreRoute by rememberSaveable { mutableStateOf(MoreRoute.Hub) }
     var detail by remember { mutableStateOf(false) }
     var calibrating by rememberSaveable { mutableStateOf(false) }
+    var themeSheet by rememberSaveable { mutableStateOf(false) }
+    var updateSheet by rememberSaveable { mutableStateOf(false) }
     fun profile() { tab = TAB_PROFILE; viewModel.dismissOnboarding() }
     fun login() { tab = TAB_PROFILE; viewModel.openLogin() }
     val onLesson: (ScheduleLesson) -> Unit = { viewModel.selectLesson(it); detail = true }
@@ -110,7 +112,7 @@ private val pushSpring = spring<androidx.compose.ui.unit.IntOffset>(dampingRatio
                         when (current) {
                             TAB_TODAY -> TodayScreen(state, ::profile, viewModel::dismissOnboarding, onLesson)
                             TAB_TIMETABLE -> TimetableScreen(state, viewModel, onLessonClick = onLesson, onProfile = { tab = TAB_PROFILE }, onCalibrate = { calibrating = true })
-                            TAB_MORE -> MoreTab(state, viewModel, moreRoute, { moreRoute = it }, ::login, holder)
+                            TAB_MORE -> MoreTab(state, viewModel, moreRoute, { moreRoute = it }, ::login, holder, { themeSheet = true }, { updateSheet = true })
                             else -> ProfileScreen(state, viewModel, onLogin = ::login, onCalibrate = { calibrating = true })
                         }
                     }
@@ -153,6 +155,8 @@ private val pushSpring = spring<androidx.compose.ui.unit.IntOffset>(dampingRatio
                 }
             }
             AnimatedVisibility(showSplash, enter = fadeIn(), exit = fadeOut(tween(450))) { SplashScreen() }
+            if (themeSheet) ThemeModeSheet { themeSheet = false }
+            if (updateSheet) UpdateSheet { updateSheet = false }
             AnimatedVisibility(!prefs.disclaimerAccepted, enter = fadeIn(), exit = fadeOut() + scaleOut(targetScale = 1.04f)) {
                 DisclaimerScreen(onAccept = prefs::acceptDisclaimer)
             }
@@ -164,6 +168,7 @@ private val pushSpring = spring<androidx.compose.ui.unit.IntOffset>(dampingRatio
 @Composable private fun MoreTab(
     state: AppUiState, viewModel: AppViewModel, route: MoreRoute, onRoute: (MoreRoute) -> Unit, onLogin: () -> Unit,
     holder: androidx.compose.runtime.saveable.SaveableStateHolder,
+    onTheme: () -> Unit, onUpdate: () -> Unit,
 ) {
     AnimatedContent(route, Modifier.fillMaxSize(), transitionSpec = {
         if (targetState != MoreRoute.Hub) (slideInHorizontally(pushSpring) { it } + fadeIn(tween(200))) togetherWith (slideOutHorizontally(pushSpring) { -it / 4 } + fadeOut(tween(200)))
@@ -172,7 +177,8 @@ private val pushSpring = spring<androidx.compose.ui.unit.IntOffset>(dampingRatio
         holder.SaveableStateProvider("more-$current") {
             val back = { onRoute(MoreRoute.Hub) }
             when (current) {
-                MoreRoute.Hub -> MoreScreen(state, { onRoute(MoreRoute.Scores) }, { onRoute(MoreRoute.Exams) }, { onRoute(MoreRoute.Assistant) }, { onRoute(MoreRoute.About) })
+                MoreRoute.Hub -> MoreScreen(state, { onRoute(MoreRoute.Scores) }, { onRoute(MoreRoute.Exams) }, { onRoute(MoreRoute.Assistant) }, { onRoute(MoreRoute.About) },
+                        onTheme = onTheme, onUpdate = onUpdate)
                 MoreRoute.Scores -> ScoresScreen(state, viewModel::refresh, viewModel::setAllScoreTerms, onLogin, onBack = back)
                 MoreRoute.Exams -> ExamsScreen(state, viewModel::refresh, onLogin, onBack = back)
                 MoreRoute.Assistant -> AssistantScreen(onBack = back)

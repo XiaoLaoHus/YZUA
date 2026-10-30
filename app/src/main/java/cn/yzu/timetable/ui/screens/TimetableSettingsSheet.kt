@@ -1,6 +1,16 @@
 package cn.yzu.timetable.ui.screens
 
 import androidx.compose.foundation.background
+import cn.yzu.timetable.ui.theme.AmbientBackground
+import androidx.compose.ui.window.DialogProperties
+import androidx.compose.ui.window.Dialog
+import cn.yzu.timetable.ui.theme.pressScale
+import cn.yzu.timetable.ui.theme.liquidGlass
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.graphics.Color
+import androidx.compose.material3.ripple
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.animation.animateColorAsState
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
@@ -94,7 +104,7 @@ import java.time.format.DateTimeFormatter
     }
 }
 
-/** 自定义课表：按名称、星期、节次、地点、教师添加，仅保存在本机界面偏好中。 */
+/** 自定义课表：按名称、星期、节次、地点、教师与周次添加，仅保存在本机界面偏好中。 */
 @Composable fun CustomLessonSection() {
     val prefs = LocalDisplayPreferences.current
     val glass = LocalGlass.current
@@ -118,52 +128,125 @@ import java.time.format.DateTimeFormatter
         Spacer(Modifier.height(6.dp))
         GlassCapsuleButton("添加课程", { editorOpen = true }, Modifier.fillMaxWidth(), icon = Icons.Default.Add)
     }
-    if (editorOpen) CustomLessonDialog({ editorOpen = false }) { prefs.addCustomLesson(it) }
+    if (editorOpen) CustomLessonSheet(onDismiss = { editorOpen = false }, onSave = { prefs.addCustomLesson(it) })
 }
 
-@Composable private fun CustomLessonDialog(onDismiss: () -> Unit, onSave: (CustomLessonDraft) -> Unit) {
+private val fieldShape = RoundedCornerShape(18.dp)
+
+@Composable private fun GlassField(value: String, onValue: (String) -> Unit, label: String) {
+    val glass = LocalGlass.current
+    OutlinedTextField(value, onValue, label = { Text(label) }, singleLine = true, modifier = Modifier.fillMaxWidth(), shape = fieldShape,
+        colors = OutlinedTextFieldDefaults.colors(
+            focusedContainerColor = MaterialTheme.colorScheme.surface.copy(alpha = if (glass.dark) 0.35f else 0.65f),
+            unfocusedContainerColor = MaterialTheme.colorScheme.surface.copy(alpha = if (glass.dark) 0.25f else 0.45f),
+            unfocusedBorderColor = MaterialTheme.colorScheme.outlineVariant,
+        ))
+}
+
+/** 玻璃胶囊下拉，用于节次选择。 */
+@Composable private fun PeriodCapsule(label: String, value: Int, onSelect: (Int) -> Unit, modifier: Modifier = Modifier) {
+    var open by remember { mutableStateOf(false) }
+    val interaction = remember { MutableInteractionSource() }
+    Box(modifier) {
+        Row(Modifier.fillMaxWidth().height(48.dp).pressScale(interaction, 0.96f).clip(CircleShape).liquidGlass(CircleShape, strong = true)
+            .clickable(interaction, glassRippleLocal(), role = Role.Button, onClick = { open = true }).padding(horizontal = 16.dp),
+            verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Text(label, style = MaterialTheme.typography.labelMedium, color = LocalGlass.current.textMuted)
+            Text("第 $value 节", style = MaterialTheme.typography.titleSmall.merge(TabularNumbers))
+            Icon(Icons.Default.ArrowDropDown, null, tint = LocalGlass.current.textMuted, modifier = Modifier.size(18.dp))
+        }
+        DropdownMenu(open, { open = false }, modifier = Modifier.width(150.dp)) {
+            (1..12).forEach { p ->
+                DropdownMenuItem(text = { Text("第 $p 节", style = MaterialTheme.typography.bodyLarge.merge(TabularNumbers)) },
+                    onClick = { onSelect(p); open = false },
+                    trailingIcon = if (p == value) {{ Icon(Icons.Default.Check, null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(16.dp)) }} else null)
+            }
+        }
+    }
+}
+
+@Composable private fun glassRippleLocal() = ripple(color = MaterialTheme.colorScheme.primary)
+
+@Composable private fun WeekChip(week: Int, selected: Boolean, onClick: () -> Unit) {
+    val interaction = remember { MutableInteractionSource() }
+    val bg by animateColorAsState(if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.06f), label = "weekChip")
+    val fg by animateColorAsState(if (selected) MaterialTheme.colorScheme.onPrimary else LocalGlass.current.textMuted, label = "weekChipText")
+    Box(Modifier.size(40.dp, 34.dp).pressScale(interaction, 0.9f).clip(RoundedCornerShape(11.dp))
+        .background(bg).clickable(interaction, glassRippleLocal(), role = Role.Checkbox, onClick = onClick), contentAlignment = Alignment.Center) {
+        Text("$week", style = MaterialTheme.typography.labelLarge.merge(TabularNumbers), color = fg)
+    }
+}
+
+private val dayNames = listOf("一", "二", "三", "四", "五", "六", "日")
+
+@Composable internal fun CustomLessonEditorContent(onSave: (CustomLessonDraft) -> Unit) {
+    val glass = LocalGlass.current
     var name by remember { mutableStateOf("") }
     var classroom by remember { mutableStateOf("") }
     var teacher by remember { mutableStateOf("") }
     var day by remember { mutableIntStateOf(1) }
     var start by remember { mutableIntStateOf(1) }
     var end by remember { mutableIntStateOf(2) }
-    var parity by remember { mutableIntStateOf(0) }
-    AlertDialog(onDismissRequest = onDismiss, title = { Text("添加自定义课程") },
-        text = {
-            Column(Modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                OutlinedTextField(name, { name = it }, label = { Text("课程名称") }, singleLine = true)
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    PeriodDropdown("开始节", start) { start = it; if (end < it) end = it }
-                    PeriodDropdown("结束节", end) { end = it.coerceAtLeast(start) }
-                }
-                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                    (1..7).forEach { d ->
-                        val selected = d == day
-                        Box(Modifier.clip(CircleShape).background(if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.06f))
-                            .clickable { day = d }.padding(horizontal = 10.dp, vertical = 6.dp)) {
-                            Text("${"一二三四五六日"[d - 1]}", color = if (selected) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurface,
-                                style = MaterialTheme.typography.labelLarge)
-                        }
+    var weekMode by remember { mutableIntStateOf(0) }
+    var picked by remember { mutableStateOf(setOf<Int>()) }
+    val weeks = when (weekMode) {
+        1 -> (1..20 step 2).toList(); 2 -> (2..20 step 2).toList(); 3 -> picked.sorted(); else -> (1..20).toList()
+    }
+    Column(Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).padding(horizontal = 18.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
+        GlassField(name, { name = it }, "课程名称")
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            PeriodCapsule("开始", start, { start = it; if (end < it) end = it }, Modifier.weight(1f))
+            PeriodCapsule("结束", end, { end = it.coerceAtLeast(start) }, Modifier.weight(1f))
+        }
+        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Text("星期", style = MaterialTheme.typography.titleSmall, color = glass.textMuted)
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                dayNames.forEachIndexed { index, label ->
+                    val d = index + 1
+                    val interaction = remember(d) { MutableInteractionSource() }
+                    val selected = d == day
+                    val bg by animateColorAsState(if (selected) MaterialTheme.colorScheme.primary else Color.Transparent, label = "dayChip")
+                    val fg by animateColorAsState(if (selected) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurface, label = "dayChipText")
+                    Box(Modifier.weight(1f).height(42.dp).pressScale(interaction, 0.92f).clip(CircleShape)
+                        .liquidGlass(CircleShape, strong = true)
+                        .background(bg)
+                        .clickable(interaction, glassRippleLocal(), role = Role.RadioButton, onClick = { day = d }),
+                        contentAlignment = Alignment.Center) {
+                        Text(label, style = MaterialTheme.typography.labelLarge, color = fg)
                     }
                 }
-                OutlinedTextField(classroom, { classroom = it }, label = { Text("地点（如 扬子津东校区 文津楼 N104）") }, singleLine = true)
-                OutlinedTextField(teacher, { teacher = it }, label = { Text("教师（可选）") }, singleLine = true)
-                GlassSegmented(listOf("每周", "单周", "双周"), parity, { parity = it }, Modifier.fillMaxWidth())
             }
-        },
-        confirmButton = { TextButton({ onSave(CustomLessonDraft(name.trim(), teacher.trim(), classroom.trim(), day, start, end, parity)); onDismiss() },
-            enabled = name.isNotBlank()) { Text("添加") } },
-        dismissButton = { TextButton(onDismiss) { Text("取消") } })
+        }
+        GlassField(classroom, { classroom = it }, "地点（如 扬子津东校区 文津楼 N104）")
+        GlassField(teacher, { teacher = it }, "教师（可选）")
+        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Text("上课周次", style = MaterialTheme.typography.titleSmall, color = glass.textMuted)
+            GlassSegmented(listOf("每周", "单周", "双周", "自选"), weekMode, { weekMode = it }, Modifier.fillMaxWidth())
+            if (weekMode == 3) {
+                Spacer(Modifier.height(4.dp))
+                (1..20).chunked(7).forEach { row ->
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                        row.forEach { w -> WeekChip(w, w in picked) { picked = if (w in picked) picked - w else picked + w } }
+                    }
+                }
+                Text(if (picked.isEmpty()) "请至少选择一周" else "已选 " + picked.size + " 周", style = MaterialTheme.typography.labelSmall,
+                    color = if (picked.isEmpty()) MaterialTheme.colorScheme.error else glass.textFaint)
+            }
+        }
+        Spacer(Modifier.height(8.dp))
+        PrimaryCapsuleButton("添加", { onSave(CustomLessonDraft(name.trim(), teacher.trim(), classroom.trim(), day, start, end, weeks)) },
+            Modifier.fillMaxWidth(), enabled = name.isNotBlank() && (weekMode != 3 || picked.isNotEmpty()))
+        Spacer(Modifier.height(16.dp))
+    }
 }
 
-@Composable private fun PeriodDropdown(label: String, value: Int, onSelect: (Int) -> Unit) {
-    var open by remember { mutableStateOf(false) }
-    Box {
-        OutlinedTextField("$value", {}, label = { Text(label) }, readOnly = true, modifier = Modifier.width(110.dp),
-            trailingIcon = { IconButton({ open = true }) { Icon(Icons.Default.ArrowDropDown, null) } })
-        DropdownMenu(open, { open = false }) {
-            (1..12).forEach { p -> DropdownMenuItem(text = { Text("第 $p 节") }, onClick = { onSelect(p); open = false }) }
-        }
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable internal fun CustomLessonSheet(onDismiss: () -> Unit, onSave: (CustomLessonDraft) -> Unit) {
+    val glass = LocalGlass.current
+    ModalBottomSheet(onDismiss, sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
+        shape = RoundedCornerShape(topStart = 30.dp, topEnd = 30.dp),
+        containerColor = if (glass.dark) MaterialTheme.colorScheme.surfaceContainerHigh else MaterialTheme.colorScheme.surface) {
+        Text("添加自定义课程", style = MaterialTheme.typography.headlineSmall, modifier = Modifier.padding(start = 20.dp, top = 4.dp, bottom = 10.dp))
+        CustomLessonEditorContent(onSave)
     }
 }

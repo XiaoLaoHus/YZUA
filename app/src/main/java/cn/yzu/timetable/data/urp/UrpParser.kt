@@ -140,7 +140,7 @@ object UrpParser {
                 val s = slot.asJsonObject; val day = text(s, "classDay")?.toIntOrNull() ?: throw UrpParseException("课程星期无效：$name"); val start = text(s, "classSessions")?.toIntOrNull() ?: throw UrpParseException("课程节次无效：$name"); val count = text(s, "continuingSession")?.toIntOrNull() ?: 1
                 val weeks = WeekPattern.parse(text(s, "classWeek") ?: throw UrpParseException("课程周次缺失：$name"))
                 if (day !in 1..7 || start !in 1..12 || count !in 1..12 || start + count - 1 > 12) throw UrpParseException("课程时间超出范围：$name")
-                val place = listOf(text(s, "campusName").orEmpty().trim(), text(s, "classroomName", "classroom").orEmpty().trim()).filter(String::isNotEmpty).joinToString(" ").ifBlank { "待定" }
+                val place = placeOf(s)
                 lessons += ScheduleLesson("$code-$day-$start-$index", code, name, teacher, place, day, start, start + count - 1, weeks.minOrNull()!!..weeks.maxOrNull()!!, lessons.size % 10, weeks)
             }
         } }
@@ -150,6 +150,15 @@ object UrpParser {
         val term = text(root, "xnxq", "xnxqmc", "term", "termName", "semester")
         return ParsedSchedule(lessons, orderedPeriods, academicYear(term), termName(term), currentWeek(root))
     }
+    /** 校区 + 教学楼 + 教室拼接；不同教务部署把楼名放在不同字段，这里按候选键补全，避免丢楼名。 */
+    private fun placeOf(s: com.google.gson.JsonObject): String {
+        val campus = text(s, "campusName", "campus", "xqmc").orEmpty().trim()
+        val room = text(s, "classroomName", "classroom", "jsmc", "jxcdmc", "classroomFullName").orEmpty().trim()
+        val building = text(s, "teachingBuildingName", "teachBuildingName", "buildingName", "jxlmc", "jxlName", "buildName", "louming").orEmpty().trim()
+        val parts = listOf(campus, building.takeIf { b -> b.isNotEmpty() && !room.contains(b) && !campus.contains(b) }.orEmpty(), room)
+        return parts.filter(String::isNotEmpty).joinToString(" ").ifBlank { "待定" }
+    }
+
     private fun parseHtml(payload: String): ParsedSchedule {
         val rows = Jsoup.parse(payload).select("table tr"); if (rows.size < 2) throw UrpParseException("课表页面缺少课程表格")
         val lessons = mutableListOf<ScheduleLesson>(); var code = ""; var name = ""; var teacher = ""

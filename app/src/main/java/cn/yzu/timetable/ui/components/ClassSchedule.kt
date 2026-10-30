@@ -20,7 +20,7 @@ enum class ThemeMode(val label: String) { System("跟随系统"), Light("日间�
 /** 自定义课程草稿：只保存在界面偏好中，与教务数据分开。 */
 data class CustomLessonDraft(
     val name: String, val teacher: String, val classroom: String,
-    val dayOfWeek: Int, val startPeriod: Int, val endPeriod: Int, val parity: Int,
+    val dayOfWeek: Int, val startPeriod: Int, val endPeriod: Int, val weeks: List<Int>,
 )
 
 data class PeriodSlot(val number: Int, val start: LocalTime, val end: LocalTime) {
@@ -144,8 +144,9 @@ class DisplayPreferences internal constructor(private val context: Context) {
     fun removeCustomLesson(id: String) { customLessons = customLessons.filterNot { it.id == id }; saveCustom() }
 
     private fun toLesson(id: String, d: CustomLessonDraft): ScheduleLesson {
-        val weeks = when (d.parity) { 1 -> (1..30 step 2).toSet(); 2 -> (2..30 step 2).toSet(); else -> (1..30).toSet() }
-        return ScheduleLesson(id, "", d.name, d.teacher, d.classroom, d.dayOfWeek, d.startPeriod, d.endPeriod, 1..30,
+        val weeks = d.weeks.ifEmpty { (1..20).toList() }.filter { it in 1..30 }.toSet()
+        val range = (weeks.minOrNull() ?: 1)..(weeks.maxOrNull() ?: 20)
+        return ScheduleLesson(id, "", d.name, d.teacher, d.classroom, d.dayOfWeek, d.startPeriod, d.endPeriod, range,
             (id.hashCode() and Int.MAX_VALUE) % 10, weeks)
     }
     private fun loadCustom(): List<ScheduleLesson> = runCatching {
@@ -154,8 +155,7 @@ class DisplayPreferences internal constructor(private val context: Context) {
     }.getOrDefault(emptyList())
     private fun saveCustom() {
         val drafts = customLessons.filter { it.id.startsWith("custom-") }.map {
-            CustomLessonDraft(it.courseName, it.teacher, it.classroom, it.dayOfWeek, it.startPeriod, it.endPeriod,
-                when { it.weekNumbers.all { w -> w % 2 == 1 } -> 1; it.weekNumbers.all { w -> w % 2 == 0 } -> 2; else -> 0 })
+            CustomLessonDraft(it.courseName, it.teacher, it.classroom, it.dayOfWeek, it.startPeriod, it.endPeriod, it.weekNumbers.sorted())
         }
         prefs.edit().putString(KEY_CUSTOM, gson.toJson(drafts)).apply()
     }

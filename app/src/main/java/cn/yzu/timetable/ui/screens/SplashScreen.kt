@@ -31,7 +31,7 @@ internal object ColdStartGate { @Volatile var splashShown = false }
     AmbientBackground {
         Column(Modifier.fillMaxSize(), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
             Image(painterResource(R.drawable.splash_motto), "坚苦自立",
-                Modifier.height(280.dp).graphicsLayer { alpha = fade; scaleX = rise; scaleY = rise })
+                Modifier.height(300.dp).graphicsLayer { alpha = fade; scaleX = rise; scaleY = rise })
             Spacer(Modifier.height(18.dp))
             Text("坚苦自立", style = MaterialTheme.typography.titleLarge, color = MaterialTheme.colorScheme.onBackground,
                 modifier = Modifier.graphicsLayer { alpha = fade })
