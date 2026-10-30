@@ -11,7 +11,7 @@ android { namespace = "cn.yzu.timetable"; compileSdk = 35
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
     }
-    defaultConfig { applicationId = "cn.yzu.timetable"; minSdk = 26; targetSdk = 35; versionCode = 100; versionName = "1.0.0"; testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner" }
+    defaultConfig { applicationId = "cn.yzu.timetable"; minSdk = 26; targetSdk = 35; versionCode = 101; versionName = "1.1.0"; testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner" }
     // 正式签名：从环境变量（CI）或未纳入版本控制的 local.properties 读取，仓库中不保存任何密钥。
     val localProps = Properties().apply { rootProject.file("local.properties").takeIf { it.exists() }?.inputStream()?.use(::load) }
     fun secret(name: String): String? = System.getenv(name)?.takeIf { it.isNotBlank() } ?: localProps.getProperty(name)?.takeIf { it.isNotBlank() }
