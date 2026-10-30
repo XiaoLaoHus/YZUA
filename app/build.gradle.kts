@@ -25,6 +25,7 @@ android { namespace = "cn.yzu.timetable"; compileSdk = 35
         }
     }
     buildTypes {
+        debug { versionNameSuffix = "-debug" }
         release {
             // 不启用 R8 混淆/裁剪：缓存与 URP 解析依赖 Gson 反射，保持与已验证的调试版完全相同的代码行为。
             isMinifyEnabled = false
