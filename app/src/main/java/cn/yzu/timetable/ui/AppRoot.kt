@@ -10,6 +10,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material.icons.outlined.Apps
+import androidx.compose.material.icons.outlined.AutoAwesome
 import androidx.compose.material.icons.outlined.CalendarMonth
 import androidx.compose.material.icons.outlined.Person
 import androidx.compose.material.icons.outlined.Today
@@ -28,16 +29,18 @@ import cn.yzu.timetable.ui.components.*
 import cn.yzu.timetable.ui.screens.*
 import cn.yzu.timetable.ui.theme.*
 
-private enum class MoreRoute { Hub, Scores, Exams, Assistant, Classroom, About }
+private enum class MoreRoute { Hub, Scores, Exams, Classroom, About }
 
 private const val TAB_TODAY = 0
 private const val TAB_TIMETABLE = 1
-private const val TAB_MORE = 2
-private const val TAB_PROFILE = 3
+private const val TAB_ASSISTANT = 2
+private const val TAB_MORE = 3
+private const val TAB_PROFILE = 4
 
 private val tabs = listOf(
     TabItem("今日", Icons.Outlined.Today, Icons.Filled.Today),
     TabItem("课表", Icons.Outlined.CalendarMonth, Icons.Filled.CalendarMonth),
+    TabItem("助手", Icons.Outlined.AutoAwesome, Icons.Filled.AutoAwesome),
     TabItem("更多", Icons.Outlined.Apps, Icons.Filled.Apps),
     TabItem("我的", Icons.Outlined.Person, Icons.Filled.Person),
 )
@@ -70,7 +73,7 @@ private val pushSpring = spring<androidx.compose.ui.unit.IntOffset>(dampingRatio
     var showSplash by remember { mutableStateOf(!cn.yzu.timetable.ui.screens.ColdStartGate.splashShown) }
     LaunchedEffect(showSplash) {
         if (showSplash) {
-            kotlinx.coroutines.delay(2000)
+            kotlinx.coroutines.delay(1000)
             cn.yzu.timetable.ui.screens.ColdStartGate.splashShown = true
             showSplash = false
         }
@@ -114,6 +117,7 @@ private val pushSpring = spring<androidx.compose.ui.unit.IntOffset>(dampingRatio
                         when (current) {
                             TAB_TODAY -> TodayScreen(state, ::profile, viewModel::dismissOnboarding, onLesson)
                             TAB_TIMETABLE -> TimetableScreen(state, viewModel, onLessonClick = onLesson, onProfile = { tab = TAB_PROFILE }, onCalibrate = { calibrating = true })
+                            TAB_ASSISTANT -> AssistantScreen(state, viewModel, onBack = null)
                             TAB_MORE -> MoreTab(state, viewModel, moreRoute, { moreRoute = it }, ::login, holder, { themeSheet = true }, { updateSheet = true })
                             else -> ProfileScreen(state, viewModel, onLogin = ::login, onCalibrate = { calibrating = true })
                         }
@@ -185,11 +189,10 @@ private val pushSpring = spring<androidx.compose.ui.unit.IntOffset>(dampingRatio
         holder.SaveableStateProvider("more-$current") {
             val back = { onRoute(MoreRoute.Hub) }
             when (current) {
-                MoreRoute.Hub -> MoreScreen(state, { onRoute(MoreRoute.Scores) }, { onRoute(MoreRoute.Exams) }, { onRoute(MoreRoute.Assistant) }, { onRoute(MoreRoute.About) },
+                MoreRoute.Hub -> MoreScreen(state, { onRoute(MoreRoute.Scores) }, { onRoute(MoreRoute.Exams) }, { onRoute(MoreRoute.About) },
                         onTheme = onTheme, onUpdate = onUpdate, onClassroom = { onRoute(MoreRoute.Classroom) })
                 MoreRoute.Scores -> ScoresScreen(state, viewModel::refresh, viewModel::setAllScoreTerms, onLogin, onBack = back)
                 MoreRoute.Exams -> ExamsScreen(state, viewModel::refresh, onLogin, onBack = back)
-                MoreRoute.Assistant -> AssistantScreen(state, viewModel, onBack = back)
                 MoreRoute.Classroom -> ClassroomSearchScreen(viewModel, onBack = back)
                 MoreRoute.About -> AboutScreen(onBack = back)
             }

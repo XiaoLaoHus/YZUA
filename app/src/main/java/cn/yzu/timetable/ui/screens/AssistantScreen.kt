@@ -25,7 +25,7 @@ import cn.yzu.timetable.ui.theme.LocalGlass
 import kotlinx.coroutines.launch
 
 /** 智能助手：用户自配 OpenAI 兼容模型，ReAct 循环调用本机课表/成绩/考试/空教室工具。 */
-@Composable fun AssistantScreen(state: AppUiState, vm: AppViewModel, onBack: () -> Unit) {
+@Composable fun AssistantScreen(state: AppUiState, vm: AppViewModel, onBack: (() -> Unit)? = null) {
     val context = LocalContext.current
     val settings = remember { AssistantSettings.get(context) }
     val glass = LocalGlass.current
@@ -58,9 +58,13 @@ import kotlinx.coroutines.launch
 
     Column(Modifier.fillMaxSize().statusBarsPadding()) {
         Row(Modifier.fillMaxWidth().padding(top = 8.dp, bottom = 6.dp, end = 16.dp), verticalAlignment = Alignment.CenterVertically) {
-            Spacer(Modifier.width(6.dp))
-            GlassIconButton(Icons.AutoMirrored.Filled.ArrowBack, "返回更多", onBack, size = 34.dp)
-            Spacer(Modifier.width(12.dp))
+            if (onBack != null) {
+                Spacer(Modifier.width(6.dp))
+                GlassIconButton(Icons.AutoMirrored.Filled.ArrowBack, "返回更多", onBack, size = 34.dp)
+                Spacer(Modifier.width(12.dp))
+            } else {
+                Spacer(Modifier.width(20.dp))
+            }
             Column(Modifier.weight(1f)) {
                 Text("智能助手", style = MaterialTheme.typography.headlineMedium)
                 Text(if (settings.configured) settings.model else "未配置模型接口", style = MaterialTheme.typography.bodySmall, color = glass.textMuted)
