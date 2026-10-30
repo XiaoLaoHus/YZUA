@@ -153,6 +153,11 @@ class AppViewModel(
         try { cache.write(snapshot); mutable.value = mutable.value.copy(cacheError = null) }
         catch (_: Exception) { mutable.value = mutable.value.copy(cacheError = "本地保存失败，当前信息仅本次可见，请检查存储空间后刷新。") }
     }
+    /** 只读导出当前教务会话 Cookie 头，供空教室查询与助手工具复用；不记录、不持久化。 */
+    fun verifiedCookieHeader(): String? = (source as? UrpHttpDataSource)?.let { d ->
+        mutable.value.session?.let { runCatching { d.verifiedCookieHeader(it) }.getOrNull() }
+    }
+
     fun updateLocalDate() {
         val today = dateProvider()
         if (mutable.value.today != today) mutable.value = mutable.value.copy(today = today, week = snapshot.semester?.weekOn(today) ?: 1)

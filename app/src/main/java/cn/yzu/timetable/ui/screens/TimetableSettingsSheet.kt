@@ -144,7 +144,7 @@ private val fieldShape = RoundedCornerShape(18.dp)
 }
 
 /** 玻璃胶囊下拉，用于节次选择。 */
-@Composable private fun PeriodCapsule(label: String, value: Int, onSelect: (Int) -> Unit, modifier: Modifier = Modifier) {
+@Composable internal fun PeriodCapsule(label: String, value: Int, onSelect: (Int) -> Unit, modifier: Modifier = Modifier) {
     var open by remember { mutableStateOf(false) }
     val interaction = remember { MutableInteractionSource() }
     Box(modifier) {

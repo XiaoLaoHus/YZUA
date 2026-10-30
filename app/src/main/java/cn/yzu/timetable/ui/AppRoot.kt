@@ -26,7 +26,7 @@ import cn.yzu.timetable.ui.components.*
 import cn.yzu.timetable.ui.screens.*
 import cn.yzu.timetable.ui.theme.*
 
-private enum class MoreRoute { Hub, Scores, Exams, Assistant, About }
+private enum class MoreRoute { Hub, Scores, Exams, Assistant, Classroom, About }
 
 private const val TAB_TODAY = 0
 private const val TAB_TIMETABLE = 1
@@ -178,10 +178,11 @@ private val pushSpring = spring<androidx.compose.ui.unit.IntOffset>(dampingRatio
             val back = { onRoute(MoreRoute.Hub) }
             when (current) {
                 MoreRoute.Hub -> MoreScreen(state, { onRoute(MoreRoute.Scores) }, { onRoute(MoreRoute.Exams) }, { onRoute(MoreRoute.Assistant) }, { onRoute(MoreRoute.About) },
-                        onTheme = onTheme, onUpdate = onUpdate)
+                        onTheme = onTheme, onUpdate = onUpdate, onClassroom = { onRoute(MoreRoute.Classroom) })
                 MoreRoute.Scores -> ScoresScreen(state, viewModel::refresh, viewModel::setAllScoreTerms, onLogin, onBack = back)
                 MoreRoute.Exams -> ExamsScreen(state, viewModel::refresh, onLogin, onBack = back)
-                MoreRoute.Assistant -> AssistantScreen(onBack = back)
+                MoreRoute.Assistant -> AssistantScreen(state, viewModel, onBack = back)
+                MoreRoute.Classroom -> ClassroomSearchScreen(viewModel, onBack = back)
                 MoreRoute.About -> AboutScreen(onBack = back)
             }
         }
